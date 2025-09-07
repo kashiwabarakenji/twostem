@@ -180,3 +180,26 @@ noncomputable def Core (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) :
   classical
   let C := ViolSet V R t0
   exact V
+
+structure SCCQuot (α : Type u) (V : Finset α) (R : Finset (Rule α)) where
+  (β : Type u) [βdec : DecidableEq β]
+  (π : α → β)
+  (σ : β → α)
+  (σ_in_V : ∀ b, σ b ∈ V)
+attribute [instance] SCCQuot.βdec
+
+/-- 代表化写像 -/
+def rep {β : Type u} (π : α → β) (σ : β → α) : α → α := fun x => σ (π x)
+
+/-- 代表集合 -/
+def Rep {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
+  V.image (rep (π := Q.π) (σ := Q.σ))
+
+/-- 自由成分 -/
+def Free {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
+  V \ Rep (Q := Q)
+
+/-- 繊維：`I ∩ Rep = B` を満たす family の部分 -/
+noncomputable def fiber (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (B : Finset α) : Finset (Finset α) :=
+  (family V R).filter (fun I => I ∩ Rep (Q := Q) = B)

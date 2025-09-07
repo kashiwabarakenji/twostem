@@ -524,16 +524,28 @@ lemma charge_upper_for_one_I
     -- 内外の和の入れ替え＋ `chi_expand_over_V_of_mem_family`
     -- 1) `chi I t.1` を `V` 上の和で展開
     have hχ :
-      ∀ t, chi I t.1 = (∑ x ∈ V, (if x = t.1 then chi I t.1 else 0)) := by
-      intro t; simpa using (chi_expand_over_V_of_mem_family V (R.erase t0) hIfam t.1)
+      ∀ t ∈ InStar (R.erase t0) t0.2.2, chi I t.1 = (∑ x ∈ V, (if x = t.1 then chi I t.1 else 0)) := by
+      intro t;
+      let ceo := (chi_expand_over_V_of_mem_family V (R.erase t0) hIfam t.1)
+      exact fun a => ceo
     -- 2) これを和に代入して、Fubini
     calc
-      (∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (chi I t.1))
+      (∑ t  ∈ InStar (R.erase t0) t0.2.2, w t * (chi I t.1))
           = ∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (∑ x ∈ V, (if x = t.1 then chi I t.1 else 0)) := by
-                apply Finset.sum_congr rfl; intro t ht; simp [hχ t, mul_sum]
+                apply Finset.sum_congr rfl;
+                intro t ht;
+                subst hTdef
+                simp_all only [true_and, Prod.forall, Finset.sum_ite_eq', left_eq_ite_iff, one_div, mul_inv_rev, mul_ite, mul_zero,
+                  mul_eq_zero]
+                intro a
+                apply Or.inr
+                exact hχ _ _ _ ht a
+
       _   = ∑ x ∈ V, (∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (if x = t.1 then chi I t.1 else 0)) := by
                 -- 和の順序入れ替え
-                exact Finset.sum_sigma' _ _ _  -- 利用可能な補題に置き換えてください
+                simp
+                sorry
+                --exact Finset.sum_sigma' _ _ _  -- 利用可能な補題に置き換えてください
       _   = ∑ x ∈ V, (chi I x) * (∑ t ∈ InStar (R.erase t0) t0.2.2,
                                   if t.1 = x then w t else 0) := by
                 -- 係数を外に出す
@@ -543,9 +555,17 @@ lemma charge_upper_for_one_I
                               = (chi I x) * (if t.1 = x then w t else 0) := by
                   intro t
                   by_cases hx : x = t.1
-                  · subst hx; simp [mul_comm, mul_left_comm, mul_assoc]
-                  · simp [hx, mul_comm, mul_left_comm, mul_assoc]
-                apply Finset.sum_congr rfl; intro t ht; simpa using this t
+                  · subst hx; simp [mul_comm]
+                  · subst hTdef
+                    simp_all only [true_and, Prod.forall, Finset.sum_ite_eq', left_eq_ite_iff, one_div, mul_inv_rev, ↓reduceIte, mul_zero,
+                      mul_ite, right_eq_ite_iff, zero_eq_mul]
+                    intro a
+                    subst a
+                    simp_all only [not_true_eq_false]
+                ring_nf
+                sorry
+
+                --apply Finset.sum_congr rfl; intro t ht; simpa using this t
   -- 同様に第2親についても
   have hExpand2 :
     (∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (chi I t.2.1))
@@ -553,14 +573,27 @@ lemma charge_upper_for_one_I
                                   if t.2.1 = x then w t else 0) := by
     -- 同様の展開
     have hχ :
-      ∀ t, chi I t.2.1 = (∑ x ∈ V, (if x = t.2.1 then chi I t.2.1 else 0)) := by
-      intro t; simpa using (chi_expand_over_V_of_mem_family V (R.erase t0) hIfam t.2.1)
+      ∀ t ∈  InStar (R.erase t0) t0.2.2, chi I t.2.1 = (∑ x ∈ V, (if x = t.2.1 then chi I t.2.1 else 0)) := by
+      intro t;
+      let ceo := (chi_expand_over_V_of_mem_family V (R.erase t0) hIfam t.2.1)
+      exact fun a => ceo
+      --simpa using (chi_expand_over_V_of_mem_family V (R.erase t0) hIfam t.2.1)
     calc
       (∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (chi I t.2.1))
           = ∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (∑ x ∈ V, (if x = t.2.1 then chi I t.2.1 else 0)) := by
-                apply Finset.sum_congr rfl; intro t ht; simp [hχ t, mul_sum]
+                apply Finset.sum_congr rfl; intro t ht;
+                subst hTdef
+                simp_all only [true_and, Prod.forall, Finset.sum_ite_eq', left_eq_ite_iff, one_div, mul_inv_rev, mul_ite, mul_zero,
+                  mul_eq_zero]
+                intro a
+                apply Or.inr
+                apply hχ
+                · exact ht
+                · simp_all only [not_false_eq_true]
+
       _   = ∑ x ∈ V, (∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (if x = t.2.1 then chi I t.2.1 else 0)) := by
-                exact Finset.sum_sigma' _ _ _
+                sorry
+                --exact Finset.sum_sigma' _ _ _
       _   = ∑ x ∈ V, (chi I x) * (∑ t ∈ InStar (R.erase t0) t0.2.2,
                                   if t.2.1 = x then w t else 0) := by
                 apply Finset.sum_congr rfl; intro x hxV
@@ -568,9 +601,17 @@ lemma charge_upper_for_one_I
                               = (chi I x) * (if t.2.1 = x then w t else 0) := by
                   intro t
                   by_cases hx : x = t.2.1
-                  · subst hx; simp [mul_comm, mul_left_comm, mul_assoc]
-                  · simp [hx, mul_comm, mul_left_comm, mul_assoc]
-                apply Finset.sum_congr rfl; intro t ht; simpa using this t
+                  · subst hx; simp [mul_comm]
+                  · subst hTdef
+                    simp_all only [true_and, Prod.forall, Finset.sum_ite_eq', left_eq_ite_iff, one_div, mul_inv_rev, ↓reduceIte, mul_zero,
+                      mul_ite, right_eq_ite_iff, zero_eq_mul]
+                    intro a
+                    subst a
+                    simp_all only [not_true_eq_false]
+
+                    --simp [hx, mul_comm, mul_left_comm, mul_assoc]
+                sorry
+                --apply Finset.sum_congr rfl; intro t ht; simpa using this t
 
   -- 2つを合体させて union 容量へ：`if t.1=x` と `if t.2.1=x` は union の if 以下
   have hUnion :
@@ -612,7 +653,9 @@ lemma charge_upper_for_one_I
           intro t ht; by_cases h1 : t.1 = x
           · have : (t.1 = x ∨ t.2.1 = x) := Or.inl h1
             simp [h1]
-          · simp [h1])
+          · simp [h1]
+            sorry
+          )
       have hmono' :
         ∀ x ∈ V,
           (∑ t ∈ InStar (R.erase t0) t0.2.2, if t.2.1 = x then w t else 0)
@@ -621,7 +664,9 @@ lemma charge_upper_for_one_I
           intro t ht; by_cases h2 : t.2.1 = x
           · have : (t.1 = x ∨ t.2.1 = x) := Or.inr h2
             simp [h2]
-          · simp [h2])
+          · simp [h2]
+            sorry
+          )
       -- それぞれに `mul_le_mul_of_nonneg_left` を適用して合体
       have hA :
         ∑ x ∈ V, (chi I x) *
@@ -640,8 +685,11 @@ lemma charge_upper_for_one_I
         intro x hx
         exact mul_le_mul_of_nonneg_left (hmono' x hx) (hχnn x)
       -- 2 つを足して右辺の「同じ和」が 2 回出る形へ
-
-      exact (add_le_add hA hB)
+      let ala := add_le_add hA hB
+      simp at ala
+      simp
+      sorry
+      --exact (add_le_add hA hB)
     -- 左辺の形に戻し、最後に 2 を外へ
     -- 左辺：`∑ w t * (χ(a)+χ(b)) = (その1) + (その2)`
     have hLeft :
@@ -650,7 +698,7 @@ lemma charge_upper_for_one_I
           + (∑ t ∈ InStar (R.erase t0) t0.2.2, w t * (chi I t.2.1)) := by
       -- 分配法則で `Finset.sum_add_distrib`
 
-      exact Finset.sum_add_distrib
+      sorry--exact?--exact Finset.sum_add_distrib
     -- 右辺：`… + … = ∑ χ_I(x) * (A + A) = ∑ χ_I(x) * (2A)`
     have hRight :
       ∑ x ∈ V, (chi I x) *
@@ -672,7 +720,9 @@ lemma charge_upper_for_one_I
       _ ≤ ∑ x ∈ V, (chi I x) *
             ((∑ t ∈ InStar (R.erase t0) t0.2.2, if (t.1 = x ∨ t.2.1 = x) then w t else 0)
              + (∑ t ∈ InStar (R.erase t0) t0.2.2, if (t.1 = x ∨ t.2.1 = x) then w t else 0)) := by
-              exact hstep
+              subst hTdef
+              simp_all only [true_and, Prod.forall, one_div, mul_inv_rev]
+
       _ = ∑ x ∈ V, (chi I x) *
             (2 * (∑ t ∈ InStar (R.erase t0) t0.2.2, if (t.1 = x ∨ t.2.1 = x) then w t else 0)) := by
               exact hRight
@@ -709,19 +759,31 @@ lemma charge_upper_for_one_I
                     if (t.1 = x ∨ t.2.1 = x) then w t else 0)) := by
         -- 1/(2T) * 2 = 1/T
         ring_nf
+        rw [mul_comm, mul_left_comm]
+        rw [←mul_assoc]
+        sorry
+
+        --exact one_div_two_mul_eq_one_div this
       -- まとめ
-      exact le_trans
+      apply le_trans
         (by exact mul_le_mul_of_nonneg_left this (by
             have : 0 ≤ 1 / (2*T) := by
               have : 0 < 1 / (2*T) := by
                 have : 0 < (2*T) := by
                   have : 0 < T := hTpos
                   have : 0 < (2 : ℚ) := by exact zero_lt_two
-                  exact mul_pos this this
+                  apply mul_pos this
+                  exact hTpos
                 exact one_div_pos.mpr this
-              exact le_of_lt this))
-        (by simpa [hcoeff]))
-    exact this
+              exact le_of_lt this
+            exact this
+          ))
+      exact Rat.le_refl
+
+      )
+
+
+    sorry
 
   -- 親容量 ≤ 1 を適用して `≤ (1/T) * ∑_x χ_I(x)` に仕上げ
   -- ただし、`x` ごとに
@@ -745,7 +807,10 @@ lemma charge_upper_for_one_I
         if (t.1 = x ∨ t.2.1 = x) then w t else 0) ≤
         (∑ t ∈ InStar (R.erase t0) t0.2.2,
         if (t.1 = x ∨ t.2.1 = x) then w t else 0) := by exact le_rfl
-      exact this) (by exact le_of_eq rfl)
+      exact this) (by
+        apply le_of_eq
+        sorry
+        )
 
   -- 上の `hcap_each` の代わりに、主定理本体では `capacity_at_parent` を直接使うので、
   -- ここでは最後を一般形に戻しておく：
@@ -767,8 +832,12 @@ lemma charge_upper_for_one_I
       -- ここでは型を合わせるために `le_trans _ (le_of_eq rfl)` で埋めてあります。
       -- 実運用ではこの行を `exact capacity_at_parent ...` に差し替える想定です。
       -- （この補題は主定理内の `have` に展開して使う方が自然です。）
-      exact le_of_eq rfl
-    exact mul_le_mul_of_nonneg_left hxcap (hχnn x)
+      apply le_of_eq
+      sorry
+    exact
+      chi_times_parentload_le_chi I x
+        (∑ t ∈ InStar (R.erase t0) t0.2.2, if t.1 = x ∨ t.2.1 = x then w t else 0) (hcap_each x hxV)
+    --exact mul_le_mul_of_nonneg_left hxcap (hχnn x)
 
   -- まとめ
   -- 直前の `this` と `hfinal` から係数 `(1/T)` を外す
@@ -860,17 +929,20 @@ theorem avgHalf_via_localLP_fullCover_rat
             ∑ t ∈ InStar (R.erase t0) t0.2.2,
               (w t) / T * indParents t I) := by
     -- `charge_lower_bound` を `I∈A` で総和
-    have hcl :=
-      charge_lower_bound (V := V) (R := R) (t0 := t0) (w := w)
-        (hpos := by
-          -- `T>0`
-          simpa [hTdef] using hTpos)
+    --have hcl :=
+    --  charge_lower_bound (V := V) (R := R) (t0 := t0) (w := w)
+    --    (hpos := by
+    --      -- `T>0`
+    --      simpa [hTdef] using hTpos)
     -- 各 `I` で `≥ 1`、よって和は `≥ |A|`
     -- `sum_const_n` を使う
     have : ∀ I ∈ addedFamily V R t0,
       1 ≤ (∑ t ∈ InStar (R.erase t0) t0.2.2,
               (w t) / T * indParents t I) := by
-      intro I hI; exact hcl I hI
+      intro I hI;
+      --search_proof
+      sorry
+      --exact hcl I hI
     -- 和に持ち上げ
     -- `∑ 1 ≤ ∑ ...`
     have hsum :
@@ -913,7 +985,11 @@ theorem avgHalf_via_localLP_fullCover_rat
       -- 一気に書き換える：
       -- `sum_congr` で各項を `chi_sum_card` に
       have : ∀ I ∈ addedFamily V R t0, (∑ x ∈ V, chi I x) = (I.card : ℚ) := by
-        intro I hI; exact chi_sum_card V I
+        intro I hI;
+        apply chi_sum_card
+
+        sorry
+        --exact chi_sum_card V I
       exact Finset.sum_congr rfl (by intro I hI; simpa using this I hI)
     -- まず各 I での上界を足し合わせる
     have :
@@ -928,7 +1004,7 @@ theorem avgHalf_via_localLP_fullCover_rat
           ≤ (∑ I ∈ addedFamily V R t0, (1 / T) * (∑ x ∈ V, chi I x)) := by exact this
       _ = (1 / T) * (∑ I ∈ addedFamily V R t0, (∑ x ∈ V, chi I x)) := by
             -- `mul_sum` で括り外へ
-            exact Finset.mul_sum.symm
+            exact Eq.symm (Finset.mul_sum (addedFamily V R t0) (fun i => ∑ x ∈ V, chi i x) (1 / T))
       _ = (1 / T) * (∑ I ∈ addedFamily V R t0, (I.card : ℚ)) := by
             -- `χ` の和をカードに
             exact congrArg (fun z => (1 / T) * z) hsum
@@ -960,8 +1036,9 @@ theorem avgHalf_via_localLP_fullCover_rat
       -- 両辺に `T` を掛ける
       have := mul_le_mul_of_nonneg_left this (le_of_lt hposT)
       -- 左：`T * |A|`、右：`T * (1/T) * S = 1 * S = S`
-      simpa [mul_assoc, inv_mul_cancel (ne_of_gt hposT), one_mul]
-        using this
+      sorry
+      --simpa [mul_assoc, inv_mul_cancel (ne_of_gt hposT), one_mul]
+      --  using this
     -- さらに `T ≥ |V|/2` ⇒ `(|V|/2)·|A| ≤ T·|A|`
     have : ((V.card : ℚ) / 2) * ((addedFamily V R t0).card : ℚ)
             ≤ T * ((addedFamily V R t0).card : ℚ) := by

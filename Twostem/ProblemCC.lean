@@ -8,6 +8,7 @@ import Mathlib.Algebra.Order.Monoid.Defs
 import Mathlib.Algebra.Group.Int.Defs
 import Mathlib.Algebra.Order.Group.Int
 import Twostem.General
+import Twostem.Basic
 import LeanCopilot
 
 open scoped BigOperators
@@ -23,49 +24,28 @@ instance decidableFinsetFinset : DecidableEq (Finset (Finset α)) :=
 
 namespace ThreadC_Fiber
 
-/-- ルールは `(親, 親, 子)` -/
-abbrev Rule (α) := α × α × α
+/- ルールは `(親, 親, 子)` -/
+--abbrev Rule (α) := α × α × α
 
-/-- `I` が `R`-閉：すべての `(a,b,r) ∈ R` で `a ∈ I ∧ b ∈ I → r ∈ I` -/
-def isClosed (R : Finset (Rule α)) (I : Finset α) : Prop :=
-  ∀ t ∈ R, (t.1 ∈ I ∧ t.2.1 ∈ I) → t.2.2 ∈ I
+/- `I` が `R`-閉：すべての `(a,b,r) ∈ R` で `a ∈ I ∧ b ∈ I → r ∈ I` -/
+--def isClosed (R : Finset (Rule α)) (I : Finset α) : Prop :=
+--  ∀ t ∈ R, (t.1 ∈ I ∧ t.2.1 ∈ I) → t.2.2 ∈ I
 
-/-- Provide decidable instance for isClosed using classical reasoning -/
-noncomputable instance isClosedDecidable (R : Finset (Rule α)) (I : Finset α) : Decidable (isClosed R I) := by
-  classical infer_instance
+/- Provide decidable instance for isClosed using classical reasoning -/
+--noncomputable instance isClosedDecidable (R : Finset (Rule α)) (I : Finset α) : Decidable (isClosed R I) := by
+--  classical infer_instance
 
-/-- 閉包族：`V` の冪集合を `isClosed R` でフィルタ -/
-noncomputable def family (V : Finset α) (R : Finset (Rule α)) : Finset (Finset α) := by
-  classical
-  exact V.powerset.filter (fun I => isClosed R I)
+/- 閉包族：`V` の冪集合を `isClosed R` でフィルタ -/
+--noncomputable def family (V : Finset α) (R : Finset (Rule α)) : Finset (Finset α) := by
+--  classical
+--  exact V.powerset.filter (fun I => isClosed R I)
 
-/-- NDS₂ 便利定義：`∑ (2|I| - |V|)` -/
-def NDS2 (V : Finset α) (F : Finset (Finset α)) : Int :=
-  ∑ I ∈ F, ((2 : Int) * (I.card : Int) - (V.card : Int))
+/- NDS₂ 便利定義：`∑ (2|I| - |V|)` -/
+--def NDS2 (V : Finset α) (F : Finset (Finset α)) : Int :=
+--  ∑ I ∈ F, ((2 : Int) * (I.card : Int) - (V.card : Int))
 
-/-- SCC 商（最小限情報） -/
-structure SCCQuot (α : Type u) (V : Finset α) (R : Finset (Rule α)) where
-  (β : Type u) [βdec : DecidableEq β]
-  (π : α → β)
-  (σ : β → α)
-  (σ_in_V : ∀ b, σ b ∈ V)
-attribute [instance] SCCQuot.βdec
+/- SCC 商（最小限情報） -/
 
-/-- 代表化写像 -/
-def rep {β : Type u} (π : α → β) (σ : β → α) : α → α := fun x => σ (π x)
-
-/-- 代表集合 -/
-def Rep {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
-  V.image (rep (π := Q.π) (σ := Q.σ))
-
-/-- 自由成分 -/
-def Free {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
-  V \ Rep (Q := Q)
-
-/-- 繊維：`I ∩ Rep = B` を満たす family の部分 -/
-noncomputable def fiber (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
-  (B : Finset α) : Finset (Finset α) :=
-  (family V R).filter (fun I => I ∩ Rep (Q := Q) = B)
 
 
 /-! ## (1) 定数和（Int 版） -/
@@ -1046,48 +1026,38 @@ lemma fibers_disjoint   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V
   subst htr₁ htr₂
   simp_all only [mem_powerset, inter_subset_right, ne_eq, not_true_eq_false]
 
-/-! ### 和と個数の交換（biUnion 経由） -/
---以下はbindなし版でも使う。
 /-- `∑_{B⊆Rep} ∑_{I∈fiber B} F I = ∑_{I∈family} F I` -/
 lemma sum_over_fibers_eq_sum_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R) (F : Finset α → Int) :
   ∑ B ∈ (Rep (Q := Q)).powerset, ∑ I ∈ fiber V R Q B, F I
     = ∑ I ∈ family V R, F I := by
   classical
-  -- `sum_biUnion` を使って左辺を biUnion 側に寄せる
-  have hdisj :
-    ∀ {B₁} (h₁ : B₁ ∈ (Rep (Q := Q)).powerset) {B₂} (h₂ : B₂ ∈ (Rep (Q := Q)).powerset),
-      B₁ ≠ B₂ → Disjoint (fiber V R Q B₁) (fiber V R Q B₂) :=
-    fun h₁ _ h₂ hNe => fibers_disjoint V R Q h₁ h₂ hNe
-  have hsub : ∀ {B} (hB : B ∈ (Rep (Q := Q)).powerset),
-      fiber V R Q B ⊆ family V R :=
-    fun hB => fiber_subset_family (Q := Q) (V := V) (R := R) _
-  -- `sum_biUnion` ： ∑ over biUnion = ∑ over sums
-  sorry
-  /-
+  -- `sum_biUnion` は pairwise-disjoint のみを要求
+  have hpair :
+    (↑((Rep (Q := Q)).powerset) : Set (Finset α)).Pairwise
+      (fun B₁ B₂ => Disjoint (fiber V R Q B₁) (fiber V R Q B₂)) := by
+    intro B₁ h₁ B₂ h₂ hNe
+    -- Set の所属を Finset の所属に戻す
+    have h₁' : B₁ ∈ (Rep (Q := Q)).powerset := by simpa using h₁
+    have h₂' : B₂ ∈ (Rep (Q := Q)).powerset := by simpa using h₂
+    exact fibers_disjoint V R Q h₁' h₂' hNe
+
+  -- biUnion 側の和と「B で和→fiber内で和」の同値
   have h :=
     Finset.sum_biUnion
       (s := (Rep (Q := Q)).powerset)
       (t := fun B => fiber V R Q B)
       (f := fun I => F I)
-      (by intro B hB; exact fun ⦃y⦄ a a_1 => hdisj hB a a_1)
-      (by intro B₁ h₁ B₂ h₂ hNe; exact hdisj h₁ h₂ hNe)
-  -- biUnion = family へ置換して対称に返す
-  -- h : ∑ I ∈ biUnion, F I = ∑ B ∈ powerset, ∑ I ∈ fiber B, F I
-  -- 目標はその対称形
+      hpair
+  -- biUnion = family に置換
   have hcov := biUnion_fibers_eq_family (Q := Q) (V := V) (R := R)
-  -- 置換して向きを揃える
+
   calc
     ∑ B ∈ (Rep (Q := Q)).powerset, ∑ I ∈ fiber V R Q B, F I
         = ∑ I ∈ ((Rep (Q := Q)).powerset.biUnion (fun B => fiber V R Q B)), F I := by
           exact h.symm
     _ = ∑ I ∈ family V R, F I := by
-          -- biUnion = family
-          -- `simp [hcov]` でも良いが明示に
-          have : (Rep (Q := Q)).powerset.biUnion (fun B => fiber V R Q B) = family V R := hcov
-          -- 等式の書換
-          -- 1 行で
-          simpa [this]
-  -/
+          rw [hcov]
+
 
 --以下もbindなし版でも使う。
 /-- 「個数」版（Int）：`∑_{B⊆Rep} ∑_{I∈fiber B} 1 = |family|` -/
@@ -1153,18 +1123,7 @@ lemma sum_main_over_powerset_eq_zero (V : Finset α) (R : Finset (Rule α)) (Q :
     simp [Finset.sum_sub_distrib, two_mul, mul_comm]
     simp [mul_two]
     rw [← sum_add_distrib]
-/-
-  have hlin :
-      ∑ B ∈ (Rep (Q := Q)).powerset,
-          ( (2 : Int) * (B.card : Int) - (Rep (Q := Q)).card )
-      =
-      (2 : Int) * (∑ B ∈ (Rep (Q := Q)).powerset, (B.card : Int))
-      - ∑ _B ∈ (Rep (Q := Q)).powerset, (Rep (Q := Q)).card := by
-    simp [Finset.sum_sub_distrib, two_mul, mul_comm]
-    simp_all only [sum_sub_distrib, sum_const, card_powerset, Int.nsmul_eq_mul, Nat.cast_pow, Nat.cast_ofNat, smul_eq_mul,
-    Nat.cast_mul, sub_left_inj]
-    simp only [mul_two, sum_add_distrib]
--/
+
   have hconst :
       ∑ _B ∈ (Rep (Q := Q)).powerset, (Rep (Q := Q)).card
         = ((Rep (Q := Q)).powerset.card : Int) * (Rep (Q := Q)).card := by
@@ -1384,6 +1343,17 @@ lemma nds2_family_le_sum_debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQu
               * ( (2 : Int) * (B.card : Int) - (Rep (Q := Q)).card )
             + Debt (Q := Q) (V := V) (R := R) B ) := base_sum
     _ = ∑ B ∈ (Rep (Q := Q)).powerset, Debt (Q := Q) (V := V) (R := R) B := hR
+
+lemma nds2_family_nonpos_of_debt_nonpos (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (nonemp : (Free (Q := Q)).Nonempty)
+  (hDebtSumNonpos :
+    ∑ B ∈ (Rep (Q := Q)).powerset, Debt V R Q B ≤ 0) :
+  NDS2 V (family V R) ≤ 0 := by
+  classical
+  -- まず C' で得た上界
+  have h := nds2_family_le_sum_debt (Q := Q) (V := V) (R := R) nonemp
+  -- 連鎖
+  exact le_trans h hDebtSumNonpos
 
 
 end ThreadC_Fiber
