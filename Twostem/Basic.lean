@@ -191,7 +191,7 @@ attribute [instance] SCCQuot.βdec
 /-- 代表化写像 -/
 def rep {β : Type u} (π : α → β) (σ : β → α) : α → α := fun x => σ (π x)
 
-/-- 代表集合 -/
+/-- 代表集合 -/ --大文字の方に統一する？
 def Rep {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
   V.image (rep (π := Q.π) (σ := Q.σ))
 
