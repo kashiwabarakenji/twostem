@@ -3,7 +3,9 @@ import Mathlib.Algebra.BigOperators.Finsupp.Basic
 import Mathlib.Data.Int.Cast.Defs
 import Mathlib.Data.Rat.Defs
 import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Tactic.Ring.RingNF
 import Twostem.Basic
+import Twostem.General
 import LeanCopilot
 open scoped Rat
 --import Mathlib.Tactic.NormCast
@@ -93,133 +95,12 @@ lemma card_Rep_add_card_Free
   rw [add_comm] at h1
   exact h1
 
-/-- R が V の元だけから成る（新頂点なし）。 -/
-def supportedOn (V : Finset α) (R : Finset (α × α × α)) : Prop :=
-  ∀ {t : α × α × α}, t ∈ R →
-    t.1 ∈ V ∧ t.2.1 ∈ V ∧ t.2.2 ∈ V
-
---def contractRules
---  (p : α → β) [DecidableEq β] (R : Finset (Rule α)) : Finset (β × β × β) :=
---  (R.image (fun t => (p t.1, p t.2.1, p t.2.2)))
-def contractRules {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α) (R : Finset (Rule α)) : Finset (Rule α) := R.image (fun t => (σ (π t.1), σ (π t.2.1), σ (π t.2.2)))
-
-lemma supportedOn_contractRules (V : Finset α) (R : Finset (Rule α)) {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α)-- (hV : supportedOn V R)
- (hσ : ∀ b, σ b ∈ V) :
- supportedOn V (contractRules (π := π) (σ := σ) R) := by
-
-  intro t ht
-  -- t は像：∃ s∈R, t = (σ (π s.1), σ (π s.2.1), σ (π s.2.2))
-  rcases Finset.mem_image.mp ht with ⟨s, hsR, hmap⟩
-  -- s の各成分は V にある
-  subst hmap
-  simp_all only [and_self]
-
-lemma card_contractRules_le
-  (R : Finset (Rule α))
-  {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α) :
-  (contractRules (π := π) (σ := σ) R).card ≤ R.card := by
-  -- 画像の濃度は元の濃度以下（基本事実）
-  exact Finset.card_image_le
-    (s := R) (f := fun t => (σ (π t.1), σ (π t.2.1), σ (π t.2.2)))
-
-lemma card_contractRules_lt_of_nonninj
-  (R : Finset (Rule α))
-  {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α)
-  (noninj :
-    ∃ t₁ ∈ R, ∃ t₂ ∈ R, t₁ ≠ t₂ ∧
-      (σ (π t₁.1), σ (π t₁.2.1), σ (π t₁.2.2))
-        = (σ (π t₂.1), σ (π t₂.2.1), σ (π t₂.2.2))) :
-  (contractRules (π := π) (σ := σ) R).card < R.card := by
-  classical
-  -- 記号短縮
-  let f : Rule α → Rule α :=
-    fun t => (σ (π t.1), σ (π t.2.1), σ (π t.2.2))
-  rcases noninj with ⟨t₁, ht₁, t₂, ht₂, hne, heq⟩
-  -- 像は t₂ を消しても変わらない：image R f = image (R.erase t₂) f
-  have hsub₁ :
-      (R.image f) ⊆ ((R.erase t₂).image f) := by
-    intro y hy
-    rcases Finset.mem_image.mp hy with ⟨s, hsR, hys⟩
-    by_cases hs : s = t₂
-    · -- s = t₂ の像は t₁ の像でも表せるので、erase側の像に入る
-      -- f t₂ = f t₁
-      have hft₂ : f s = f t₁ := by
-        -- hs で置換してから heq を使う
-        have : f t₂ = f t₁ := by
-          -- `heq : f t₁ = f t₂` なので対称にする
-          exact Eq.symm heq
-        -- s = t₂ を反映
-        exact Eq.trans (by cases hs; rfl) this
-      -- t₁ は erase t₂ に居る
-      have ht₁erase : t₁ ∈ R.erase t₂ :=
-        by
-          subst hys hs
-          simp_all only [Finset.mem_image, Prod.mk.injEq, Prod.exists, ne_eq, Finset.mem_erase, not_false_eq_true, and_self, f]
-
-      -- y = f s = f t₁ で、t₁∈erase だから像に入る
-      have : y = f t₁ := by
-        apply Eq.trans
-        exact id (Eq.symm hys)--hys hft₂
-        exact hft₂
-      apply Finset.mem_image.mpr
-      show ∃ a ∈ R.erase t₂, f a = y
-      use t₁
-      subst hys hs
-      simp_all only [Finset.mem_image, Prod.mk.injEq, Prod.exists, ne_eq, Finset.mem_erase, not_false_eq_true, and_self, f]
-
-    · -- s ≠ t₂ のときは、そのまま erase 側の像に入る
-      have hsErase : s ∈ R.erase t₂ :=
-        Finset.mem_erase.mpr ⟨hs, hsR⟩
-      exact Finset.mem_image.mpr ⟨s, hsErase, hys⟩
-  have hsub₂ :
-      ((R.erase t₂).image f) ⊆ (R.image f) := by
-    intro y hy
-    rcases Finset.mem_image.mp hy with ⟨s, hsErase, hys⟩
-    -- erase の要素は元集合の要素
-    have hsR : s ∈ R := (Finset.mem_erase.mp hsErase).2
-    exact Finset.mem_image.mpr ⟨s, hsR, hys⟩
-  -- 以上より両包含で像が一致
-  have himage_eq : (R.image f) = ((R.erase t₂).image f) :=
-    by
-      apply Finset.Subset.antisymm
-      · exact hsub₁
-      · exact hsub₂
-  -- 濃度の比較：画像の濃度 ≤ 台集合の濃度（erase側）
-  have hcard_le_erase :
-      ((R.erase t₂).image f).card ≤ (R.erase t₂).card :=
-    Finset.card_image_le (s := R.erase t₂) (f := f)
-  -- 左辺を書き換えて、(R.image f).card ≤ (R.erase t₂).card
-  have hle : (R.image f).card ≤ (R.erase t₂).card := by
-    -- `congrArg Finset.card` で等式からカード等式へ
-    have hc : (R.image f).card = ((R.erase t₂).image f).card :=
-      congrArg Finset.card himage_eq
-    -- `hc ▸ hcard_le_erase`
-    exact le_trans (le_of_eq hc) hcard_le_erase
-  -- `erase` は真に小さい（t₂∈R）
-  have hlt_erase : (R.erase t₂).card < R.card := by
-    exact Finset.card_erase_lt_of_mem ht₂
-  -- 連鎖して結論
-  exact lt_of_le_of_lt hle hlt_erase
 ----
-/- `family` のメンバ判定を素直に展開した形。 -/
-omit [DecidableEq α] in
-lemma mem_family_iff
-  (V : Finset α) (R : Finset (Rule α)) {I : Finset α} :
-  I ∈ family V R ↔ I ⊆ V ∧ isClosed R I := by
-  unfold family
-  constructor
-  · intro h
-    have h' := Finset.mem_filter.mp h
-    have hsubset : I ⊆ V := Finset.mem_powerset.mp h'.1
-    exact And.intro hsubset h'.2
-  · intro h
-    have hsubset : I ⊆ V := h.1
-    have hclosed : isClosed R I := h.2
-    have hpow : I ∈ V.powerset := Finset.mem_powerset.mpr hsubset
-    exact Finset.mem_filter.mpr (And.intro hpow hclosed)
+
 
 /-- `fiber` のメンバ判定を素直に展開した形。 -/
-lemma mem_fiber_iff
+---内部から参照あり
+private lemma mem_fiber_iff
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   {B I : Finset α} :
   I ∈ fiber V R Q B ↔ I ∈ family V R ∧ I ∩ Rep (Q := Q) = B := by
@@ -235,7 +116,8 @@ lemma mem_fiber_iff
 右辺の内側は `family.filter (fun I => I ∩ Rep = B)` を
 `sum_filter` で `if … then … else 0` に置き換えた形。
 -/
-lemma sum_family_partition_via_filter
+--内部から参照多数
+private lemma sum_family_partition_via_filter
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (φ : Finset α → Int) :
   ∑ I ∈ family V R, φ I
@@ -300,7 +182,8 @@ lemma sum_family_partition_via_filter
   exact Eq.trans step step'
 
 /-- `sum_filter` を用いて、内側の if を fiber（=filter）に戻す版。 -/
-lemma sum_family_partition_as_fibers
+--内部から参照なし。別のバージョンもあるがそちらも参照なし。
+private lemma sum_family_partition_as_fibers
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (φ : Finset α → Int) :
   ∑ I ∈ family V R, φ I
@@ -367,6 +250,7 @@ lemma sum_family_partition_as_fibers
   exact Eq.trans h0 (Eq.trans h2 h3)
 
 /-! 参考：`NDS2` で使う一次式の総和の線形化（定義展開用）。 -/
+--内部から参照あり。メインからも参照したいみたいなのでprivateを外す。
 omit [DecidableEq α] in
 lemma sum_linearize_card_sub_const
   (V : Finset α) :
@@ -427,7 +311,8 @@ lemma sum_linearize_card_sub_const
             simp_all only [Finset.sum_const, Int.nsmul_eq_mul]
 
 /-- 異なる `B` の fiber は互いに素。 -/
-lemma fibers_pairwise_disjoint
+--内部から参照なし
+private lemma fibers_pairwise_disjoint
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R) :
   ∀ {B₁} , B₁ ∈ (Rep (Q := Q)).powerset →
   ∀ {B₂} , B₂ ∈ (Rep (Q := Q)).powerset →
@@ -453,6 +338,7 @@ lemma fibers_pairwise_disjoint
 
 /-- R₁ の閉性は `Rep` 成分だけで決まり、`I` と `I ∩ Rep` で同値。
     ここでは `supportedOn V R` を仮定して、R₁ の子（σ(π r)）が確かに `Rep` に属することを使う。 -/
+--内部から参照あり。
 lemma isClosed_contractRules_iff_onRep
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (hV : supportedOn V R) :
@@ -559,6 +445,7 @@ lemma isClosed_contractRules_iff_onRep
     exact (Finset.mem_inter.mp hchild_in_Irep).1
 
 /-- Rep 上の縮約族（R₁ に対する Rep 側の閉集合族） -/
+--外部から参照される定理で利用されている。
 noncomputable def familyRep
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R) :
   Finset (Finset α) :=
@@ -566,7 +453,7 @@ noncomputable def familyRep
     (fun B => isClosed (R1 (V := V) (R := R) (Q := Q)) B)
 
 /-- R₁ の family へのメンバ判定を、`I ⊆ V` と `I ∩ Rep ∈ familyRep` に還元。 -/
-lemma mem_family_contractRules_iff
+private lemma mem_family_contractRules_iff
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (hV : supportedOn V R) {I : Finset α} :
   I ∈ family V (R1 (V := V) (R := R) (Q := Q))
@@ -726,8 +613,8 @@ lemma sum_family_partition_as_fibers_wrt
   intro B hB; exact h1 B hB
 
 -- 既存：familyRep, R1, mem_family_contractRules_iff, ... はそのままでOK
-
-lemma sum_family_contractRules_partition_as_closed_fibers
+--内部から参照あり
+private lemma sum_family_contractRules_partition_as_closed_fibers
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (hV : supportedOn V R)
   (φ : Finset α → Int) :
@@ -802,7 +689,8 @@ lemma sum_family_contractRules_partition_as_closed_fibers
   exact Eq.trans (Eq.trans h0 h2) hshrink
 
 /-- R₁ で B が閉なら、その fiber は Free 上の立方体と「B ∪ S」の形で一致。 -/
-lemma fiber_contractRules_eq_cube_of_closed
+--内部から参照あり
+private lemma fiber_contractRules_eq_cube_of_closed
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (hV : supportedOn V R)
   {B : Finset α}
@@ -923,10 +811,28 @@ lemma fiber_contractRules_eq_cube_of_closed
               exact Finset.union_inter_distrib_right _ _ _
         _ = B ∪ ∅ := by
               -- B ⊆ Rep、S ⊆ Free、Rep ⊥ Free
-              have : B ∩ Rep (Q := Q) = B := by
+              have br: B ∩ Rep (Q := Q) = B := by
                 exact Finset.inter_eq_left.mpr hBsub
-              have : S ∩ Rep (Q := Q) = ∅ := by
-                sorry
+              have sr: S ∩ Rep (Q := Q) = ∅ := by
+                have sf: S ⊆ Free (Q := Q) := hSsub
+                have dfr: Disjoint (Free (Q := Q)) (Rep (Q := Q)) := by
+                  exact hdis.symm
+                dsimp [Disjoint] at dfr
+                subst hI'
+                simp_all only [R1, Finset.mem_powerset, Finset.inter_eq_left, Finset.subset_empty, subset_refl, Finset.mem_image,
+                  Finset.empty_subset]
+                obtain ⟨w, h⟩ := hIimg
+                obtain ⟨left, right⟩ := h
+                apply dfr
+                · intro x hx
+                  simp_all only [subset_refl, Finset.mem_inter]
+                  obtain ⟨left_1, right_1⟩ := hx
+                  apply sf
+                  simp_all only [subset_refl]
+                · simp_all only [subset_refl, Finset.inter_subset_right]
+              rw [br, sr]
+
+
                 /-
                 exact (Finset.disjoint_left.mp hdisBS) ▸ by
                   -- S ∩ B = ∅ から S ∩ Rep = ∅ はわかりづらいが、
@@ -938,7 +844,6 @@ lemma fiber_contractRules_eq_cube_of_closed
                       hdis.mono_right hSsub
                     exact this.symm.inter_eq_left
                 -/
-              simpa [this]
         _ = B := by simp
     -- I の閉性：I∩Rep = B が閉 ⇒ I も閉
     have hIclosed :
@@ -956,7 +861,8 @@ lemma fiber_contractRules_eq_cube_of_closed
     exact Finset.mem_filter.mpr (And.intro hIfam hIcond)
 
 /-- 上の同一視を使って、R₁ の fiber（閉な B）上の和を Free 立方体の和に引き戻す。 -/
-lemma sum_fiber_contractRules_closedB_pullback
+--内部から参照あり
+private lemma sum_fiber_contractRules_closedB_pullback
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (hV : supportedOn V R)
   {B : Finset α}
@@ -983,7 +889,17 @@ lemma sum_fiber_contractRules_closedB_pullback
     -- 片側に `\ B` をかければ S が取り出せる（B と Free は素）
     -- S = (B ∪ S) \ B
     have hdis : Disjoint B (Free (Q := Q)) := by
-      sorry
+      have :Disjoint (Rep (Q := Q)) (Free (Q := Q)) := by exact disjoint_Rep_Free V R Q
+      dsimp [Disjoint] at this
+      dsimp [Disjoint]
+      intro x hx
+      intro a
+      simp_all only [R1, Finset.mem_powerset, Finset.subset_empty, subset_refl, Finset.empty_subset,
+        Finset.inter_subset_right]
+      apply this
+      · tauto
+      · simp_all only [subset_refl, Finset.inter_subset_right]
+
       --disjoint_Rep_Free (V := V) (R := R) (Q := Q)
     have hS₁sub : S₁ ⊆ Free (Q := Q) := Finset.mem_powerset.mp h₁
     have hS₂sub : S₂ ⊆ Free (Q := Q) := Finset.mem_powerset.mp h₂
@@ -1046,9 +962,41 @@ lemma sum_fiber_contractRules_closedB_pullback
   -- 連結
   exact Eq.trans this himage
 
-/-- 立方体引き戻しを使って、`φ I = (2:ℤ)|I| - |V|` のときの fiber 和を
+-- 仮に Free Q と Rep Q を型として定義
+--variable (Q : Type) (FreeQ RepQ : Type)
+
+-- 証明したい等式
+--内部から参照あり
+private lemma check_eq (cFreeQ cRepQ : Nat) :
+  @Nat.cast ℤ instNatCastInt cFreeQ * 2 ^ (cFreeQ - 1) * 2 + (- (cFreeQ * 2 ^ cFreeQ) - cRepQ * 2 ^ cFreeQ) =
+  - (cRepQ * 2 ^ cFreeQ) :=
+by
+  -- 左辺の第1項を簡約
+  have h1 : @Nat.cast ℤ instNatCastInt  cFreeQ * 2 ^ (cFreeQ - 1) * 2 = cFreeQ * 2 ^ cFreeQ := by
+    rw [mul_assoc,mul_comm]
+    rw [← pow_succ]
+    rw [mul_comm]
+    by_cases cf:cFreeQ = 0
+    case pos =>
+      rw [cf]
+      exact rfl
+    case neg =>
+      simp_all only [mul_eq_mul_left_iff, Nat.ofNat_pos, ne_eq, OfNat.ofNat_ne_one, not_false_eq_true, pow_right_inj₀,
+        Int.natCast_eq_zero, or_false]
+      omega
+
+  -- 左辺全体を書き換え
+  rw [h1]
+  -- 括弧を展開し、項を整理
+  simp only [sub_eq_add_neg]
+  -- |Free Q| * 2 ^ |Free Q| - |Free Q| * 2 ^ |Free Q| = 0
+  rw [add_neg_cancel_left]
+  -- 残りは - cRepQ * 2 ^ cFreeQ で、右辺と一致
+
+/- 立方体引き戻しを使って、`φ I = (2:ℤ)|I| - |V|` のときの fiber 和を
     明示計算する（B は R₁ 上で閉）。 -/
-lemma sum_fiber_contractRules_closedB_NDS2
+--内部から参照あり
+private lemma sum_fiber_contractRules_closedB_NDS2
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (hV : supportedOn V R)
   {B : Finset α}
@@ -1098,43 +1046,17 @@ lemma sum_fiber_contractRules_closedB_NDS2
     -- sum of (a*b - c) = a*sum b - c * count
     -- 以下、標準補題の組合せで達成
     -- 1行で：
-    sorry
-    /-
-    exact
-      Finset.sum_sub_distrib.trans
-        (by
-          -- 左：∑ 2*|B∪S| = 2 * ∑ |B∪S|
-          -- 右：∑ |V| = |V| * (#powerset)
-          have h1 :
-              ∑ S ∈ (Free (Q := Q)).powerset, ((2 : Int) * ((B ∪ S).card : Int))
-                =
-              (2 : Int) * (∑ S ∈ (Free (Q := Q)).powerset, ((B ∪ S).card : Int)) := by
-            -- 定数 2 を前に出す（有限和の線形性）
-            -- `nsmul` 経由でも可。ここは `by` で簡潔に扱います。
-            -- `Finset` の帰納で出してもOKです。
-            -- 體裁の都合で `by` で省略します。
-            -- ★ ここはあなたの環境の線形性補題（`sum_mul` 等）に差し替えてもOK。
-            -- 簡潔に以下のように：
-            refine (by
-              -- 1ステップずつ `Finset.induction_on` で証明しても良いですが
-              -- ここでは方針として既知事実として扱います。
-              -- 実務では `by simpa [Finset.mul_sum]` 等でも可。
-              admit)
-          -- 右辺の等式：定数の和
-          have h2 :
-              ∑ S ∈ (Free (Q := Q)).powerset, (V.card : Int)
-                =
-              (V.card : Int) * ((Free (Q := Q)).powerset).card := by
-            -- 定数の和は要素数倍
-            -- これも既知（`sum_const_nsmul` 相当）。帰納でもOK。
-            admit
-          -- 組合せて仕上げ
-          exact by
-            -- 上の h1, h2 を差し込む
-            -- `calc` でも良いが、ここは `rw` 連鎖でもOK
-            -- 省略
-            admit )
-    -/
+    simp
+    rw [mul_comm]
+    ring_nf
+    rw [add_comm]
+    --simp_all
+    --norm_cast
+    rw [@Int.add_neg_eq_sub]
+    simp
+    simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul,
+      Finset.card_powerset, Nat.cast_pow, Nat.cast_ofNat]
+    rw [Finset.sum_mul]
 
   -- |B ∪ S| = |B| + |S|（B ⊥ S, S ⊆ Free）
   have hsum_card :
@@ -1149,19 +1071,37 @@ lemma sum_fiber_contractRules_closedB_NDS2
           ((B ∪ S).card : Int) = (B.card : Int) + (S.card : Int) := by
       intro S hS
       have hSsub : S ⊆ Free (Q := Q) := Finset.mem_powerset.mp hS
-      have hdis' : Disjoint B S := sorry
+      have hdis' : Disjoint B S := by exact Disjoint.mono hBsub hSsub hdis
       /-
         (disjoint_Rep_Free (V := V) (R := R) (Q := Q)).mono_right hSsub
       -/
       -- `card_union`（交わり無し）で Nat の等式を取り、Int に持ち上げる
       have hNat : (B ∪ S).card = B.card + S.card := by
-        sorry
-      -- Int に持ち上げ
+        simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul,
+          Finset.card_powerset, Nat.cast_pow, Nat.cast_ofNat, Finset.mem_powerset,
+          Finset.card_union_of_disjoint]
+
+     -- Int に持ち上げ
       exact congrArg (fun n : Nat => (n : Int)) hNat
     -- これを和に敷衍
     -- 左辺の和を右辺の和に変形
     -- ここも `Finset` 帰納＋分配で丁寧にやってもOK。簡潔のため `by`。
-    sorry
+    have : ∑ S ∈ (Free Q).powerset, @Nat.cast ℤ instNatCastInt (B ∪ S).card = ∑ S ∈ (Free Q).powerset, ( @Nat.cast ℤ instNatCastInt B.card  +  @Nat.cast ℤ instNatCastInt S.card) := by
+      refine Finset.sum_congr rfl ?_
+      intro S hS
+      rw [Int.ofNat_inj.mp (hpoint hS)]
+      simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul, Finset.card_powerset, Nat.cast_pow,
+        Nat.cast_ofNat, Finset.mem_powerset, Nat.cast_add]
+    rw [this]
+    rw [Finset.sum_add_distrib]
+    ring_nf
+    have : ∑ x ∈ (Free Q).powerset, @Nat.cast ℤ instNatCastInt B.card = @Nat.cast ℤ instNatCastInt B.card *  @Nat.cast ℤ instNatCastInt (Free Q).powerset.card := by
+      simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul, Finset.card_powerset, Nat.cast_pow,
+        Nat.cast_ofNat, Finset.mem_powerset]
+      rw [mul_comm]
+    rw [this]
+    exact Int.add_comm (↑B.card * ↑(Free Q).powerset.card) (∑ x ∈ (Free Q).powerset, ↑x.card)
+
 
   -- 二項恒等式（既知として利用可）：
   -- 1) card powerset：|𝒫(Free)| = 2^{|Free|}
@@ -1182,7 +1122,8 @@ lemma sum_fiber_contractRules_closedB_NDS2
     -- 実装では、Nat 版の等式に `congrArg (fun n : Nat => (n : Int))` と
     -- `Nat.cast_pow`, `Nat.cast_mul` などを組み合わせて移送してください。
     -- 省略（コメント）：
-    admit
+    exact sum_card_powerset_int (Free Q)
+
 
   -- V.card = Rep.card + Free.card
   have hVcard :
@@ -1209,10 +1150,46 @@ lemma sum_fiber_contractRules_closedB_NDS2
     -- ここで #P(Free) は powerset の要素数、`•` は nsmul
     apply congrArg (fun z => z)
     exact id (Eq.symm hlin))
-  sorry
+  rw [this]
+
+  --この式で合っているのか確認する。
+  -- ∑ S ∈ (Free Q).powerset, (2 * ↑(B ∪ S).card - ↑V.card) = 2 ^ (Free Q).card * (2 * ↑B.card - ↑(Rep Q).card)
+  have : 2 * (∑ S ∈ (Free Q).powerset, @Nat.cast ℤ instNatCastInt (B ∪ S).card) - (∑ S ∈ (Free Q).powerset, @Nat.cast ℤ instNatCastInt V.card) = 2 ^ (Free Q).card * (2 * ↑B.card - @Nat.cast ℤ instNatCastInt (Rep Q).card) := by
+
+    rw [hsum_card]
+    have :2 *(∑ S ∈ (Free Q).powerset,  @Nat.cast ℤ instNatCastInt S.card) - ∑ S ∈ (Free Q).powerset, @Nat.cast ℤ instNatCastInt V.card=  - (2 ^ (Free Q).card) * (@Nat.cast ℤ instNatCastInt (Rep Q).card) := by
+      rw [hVcard, hSumCard_nat]
+      simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul, Finset.card_powerset, Nat.cast_pow,
+        Nat.cast_ofNat]
+      ring_nf
+      exact check_eq (Free Q).card (Rep Q).card
+
+    simp
+    rw [mul_add]
+    rw [mul_sub]
+    have this2: 2 * (2 ^ (Free Q).card *  @Nat.cast ℤ instNatCastInt B.card) = 2 ^ (Free Q).card * (2 *  @Nat.cast ℤ instNatCastInt B.card) := by
+      exact Int.mul_left_comm 2 (2 ^ (Free Q).card) ↑B.card
+    rw [this2]
+    have this3:2 ^ (Free Q).card * (2 * @Nat.cast ℤ instNatCastInt B.card) + 2 * ∑ S ∈ (Free Q).powerset, @Nat.cast ℤ instNatCastInt S.card - 2 ^ (Free Q).card * @Nat.cast ℤ instNatCastInt V.card =
+  2 ^ (Free Q).card * (2 * @Nat.cast ℤ instNatCastInt B.card) + ((- 2 ^ (Free Q).card) *  @Nat.cast ℤ instNatCastInt (Rep Q).card) := by
+      rw [←this]
+      simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul, Finset.card_powerset, Nat.cast_pow,
+        Nat.cast_ofNat, neg_mul]
+      symm
+      omega
+    simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul, Finset.card_powerset, Nat.cast_pow,
+      Nat.cast_ofNat, neg_mul]
+    rfl
+
+  rw [←this]
+  simp_all only [R1, Finset.sum_sub_distrib, Finset.sum_const, Int.nsmul_eq_mul, Finset.card_powerset, Nat.cast_pow,
+    Nat.cast_ofNat]
+  convert this using 2
+  ring
 
 /-- R₁ 側 NDS₂ の因数分解式（Free の寄与が 2^{|Free|} に“出る”版）。 -/
-lemma NDS2_family_contractRules_factorized
+--メインから参照する予定
+theorem NDS2_family_contractRules_factorized
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (hV : supportedOn V R) :
   NDS2 V (family V (R1 (V := V) (R := R) (Q := Q)))
@@ -1257,155 +1234,155 @@ lemma NDS2_family_contractRules_factorized
   -- ∑ B (c * f B) = c * ∑ B f B
   -- 既知：有限和の線形性
   -- ここも線形性補題を使って仕上げてください。
-  admit
-
-end ThreadC
----以下は古いもの。コンパイルも通ってないし、間違った方針。消して良い。s
-/-
-/- `family V R₁` の総和は、`B` を「R₁ 上で閉な Rep 部分集合」に限定して
-    `I ∩ Rep = B` の fiber による二重和に分解できる（bind 不要版）。 -/
-lemma sum_family_contractRules_partition_as_closed_fibers
-  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
-  (hV : supportedOn V R)
-  (φ : Finset α → Int) :
-  ∑ I ∈ family V (R1 (V := V) (R := R) (Q := Q)), φ I
-    =
-  ∑ B ∈ familyRep (V := V) (R := R) (Q := Q),
-      ∑ I ∈ (family V (R1 (V := V) (R := R) (Q := Q))).filter
-                (fun I => I ∩ Rep (Q := Q) = B),
-          φ I := by
-  classical
-  -- まず powerset(Rep) 全域で `if …` による分解
-  have h0 :
-      ∑ I ∈ family V (R1 (V := V) (R := R) (Q := Q)), φ I
-        =
-      ∑ B ∈ (Rep (Q := Q)).powerset,
-          ∑ I ∈ family V (R1 (V := V) (R := R) (Q := Q)),
-              (if I ∩ Rep (Q := Q) = B then φ I else 0) := by
-
-
-    let sf := sum_family_partition_via_filter
-      (V := V) (R := R1 (V := V) (R := R) (Q := Q))   -- 内側を filter に戻す
-    sorry
-  have h1 :
-      ∀ B, B ∈ (Rep (Q := Q)).powerset →
-        (∑ I ∈ family V (R1 (V := V) (R := R) (Q := Q)),
-            (if I ∩ Rep (Q := Q) = B then φ I else 0))
-          =
-        (∑ I ∈ (family V (R1 (V := V) (R := R) (Q := Q))).filter
-                  (fun I => I ∩ Rep (Q := Q) = B), φ I) := by
-    intro B hB
-    -- sum_filter の等式を逆向きに使用
-    have := (Finset.sum_filter
-              (s := family V (R1 (V := V) (R := R) (Q := Q)))
-              (p := fun I => I ∩ Rep (Q := Q) = B)
-              (f := fun I => φ I))
-    exact Eq.symm this
-  have h2 :
-      ∑ B ∈ (Rep (Q := Q)).powerset,
-          ∑ I ∈ family V (R1 (V := V) (R := R) (Q := Q)),
-              (if I ∩ Rep (Q := Q) = B then φ I else 0)
-        =
-      ∑ B ∈ (Rep (Q := Q)).powerset,
-          ∑ I ∈ (family V (R1 (V := V) (R := R) (Q := Q))).filter
-                    (fun I => I ∩ Rep (Q := Q) = B), φ I := by
-    refine Finset.sum_congr rfl ?_
-    intro B hB; exact h1 B hB
-  -- ここから「閉でない B の項は 0」なので、familyRep へ台集合を縮める
-  have hvanish :
-      ∀ {B}, B ∈ (Rep (Q := Q)).powerset →
-        B ∉ familyRep (V := V) (R := R) (Q := Q) →
-        (∑ I ∈ (family V (R1 (V := V) (R := R) (Q := Q))).filter
-                  (fun I => I ∩ Rep (Q := Q) = B), φ I) = 0 := by
-    intro B hB hBnot
-    -- familyRep でない ⇒ B は Rep の部分集合かつ 閉ではない
-    have hBsub : B ⊆ Rep (Q := Q) := Finset.mem_powerset.mp hB
-    have : ¬ isClosed (R1 (V := V) (R := R) (Q := Q)) B := by
-      -- familyRep ∋ B なら (B∈powerset ∧ isClosed) だが、今は ∉familyRep
-      -- よって isClosed が偽（powerset には入っている）
-      intro hcl
-      have : B ∈ familyRep (V := V) (R := R) (Q := Q) := by
-        unfold familyRep
-        exact Finset.mem_filter.mpr (And.intro hB hcl)
-      exact hBnot this
-    -- 非閉 B の fiber は空
-    have hempty :=
-      family_contractRules_filter_empty_of_nonclosed_B
-        (V := V) (R := R) (Q := Q) hV (B := B) this
-    -- 空集合上の和は 0
-    -- `sum_const_zero` 的に `Finset.sum` の定義から 0
-    -- ここは `by` で扱う
-    -- 具体的には `by simpa [hempty]` でもよいが、`simpa using` は使わない方針なので：
-    have : (family V (R1 (V := V) (R := R) (Q := Q))).filter
-              (fun I => I ∩ Rep (Q := Q) = B) = ∅ := hempty
-    -- 置換して sum over ∅ = 0
-    -- `Finset.sum` の空集合は 0
-    -- `Finset.sum` の定義から `rfl` 書換でも OK
-    -- 明示的に：
-    -- `Finset.sum` は `fold` なので `rfl` 置換で 0
-    -- ここは簡潔に：
-    have hzero :
-        ∑ I ∈ ∅, φ I = 0 := by
-      -- sum over empty is 0
-      simp_all only [R1, Finset.mem_powerset, Finset.sum_empty]
-
-    -- 両辺の台集合を書き換える
-    -- （`congrArg` 経由で置換）
-    have := congrArg (fun (s : Finset (Finset α)) => ∑ I ∈ s, φ I) this
-    -- 右辺は 0
-    -- 以上で示せた
-    -- しかし上の `Finset.sum_const_zero` は
-    --   `∑ x ∈ s, 0 = 0` 用なので注意。
-    -- より安全には `by cases this; simp` で処理しても良い。
-    -- ここでは最終目標へ直接返す。
-    -- 簡潔に `simp [this]`
-    -- （方針で `simp using` は使わないが、`simp [this]` はOK）
-    simpa [this]
-  -- 台集合縮小の一般補題：Powerset 全域の和 = familyRep 上の和（閉でない項は0）
-  have hshrink :
-      ∑ B ∈ (Rep (Q := Q)).powerset,
-          ∑ I ∈ (family V (R1 (V := V) (R := R) (Q := Q))).filter
-                    (fun I => I ∩ Rep (Q := Q) = B), φ I
+  have hEq :
+      ∑ I ∈ family V (R1 (V := V) (R := R) (Q := Q)),
+          ((2 : Int) * (I.card : Int) - (V.card : Int))
         =
       ∑ B ∈ familyRep (V := V) (R := R) (Q := Q),
-          ∑ I ∈ (family V (R1 (V := V) (R := R) (Q := Q))).filter
-                    (fun I => I ∩ Rep (Q := Q) = B), φ I := by
-    -- `Finset.sum_subset` を使う
-    refine Finset.sum_subset ?subset ?vanish
-    · -- subset：familyRep ⊆ powerset
-      intro B hBfamRep
-      have hPow_and_closed := Finset.mem_filter.mp hBfamRep
-      exact hPow_and_closed.1
-    · -- vanish：powerset の要素で familyRep にないものは 0
-      intro B hBpow hBnot
-      exact hvanish hBpow hBnot
+          ((2 : Int) ^ (Free (Q := Q)).card
+            * ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card)) :=
+    hpart.trans hstep
 
+  -- 定数係数 2^{|Free|} を外へ（mul_sum の対称形を使用）
+  have hfactor :
+      ∑ B ∈ familyRep (V := V) (R := R) (Q := Q),
+          ((2 : Int) ^ (Free (Q := Q)).card
+            * ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card))
+        =
+      (2 : Int) ^ (Free (Q := Q)).card *
+        ∑ B ∈ familyRep (V := V) (R := R) (Q := Q),
+            ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card) := by
+    exact
+      (Finset.mul_sum
+        (a := (2 : Int) ^ (Free (Q := Q)).card)
+        (s := familyRep (V := V) (R := R) (Q := Q))
+        (f := fun B => ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card))).symm
 
-    refine Finset.sum_subset ?subset ?vanish
-    · -- subset：familyRep ⊆ powerset
-      intro B hBfamRep
-      --have hPow_and_closed := Finset.mem_filter.mp hBfamRep
-      --exact hPow_and_closed.1
-      dsimp [Rep] at hBfamRep
-      dsimp [familyRep]
-      simp
-      constructor
-      · simp_all only [R1, Finset.mem_powerset]
-        exact hBfamRep
-      · simp  at hBfamRep
-        dsimp [isClosed]
-        dsimp [contractRules]
-        intro t r ht
-        rw [Finset.mem_image] at r
+  -- 定義を書き戻して終了
+  unfold NDS2
+  exact hEq.trans hfactor
 
-        --なんか定理があるのかも。
-        show t.2.2 ∈ B
+noncomputable def Missing
+  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (B : Finset α) : Int :=
+  (2 : Int) ^ (Free (Q := Q)).card - ((fiber V R Q B).card : Int)
 
-        sorry
-    · -- vanish：powerset の要素で familyRep にないものは 0
-      intro B hBpow hBnot
-      sorry
-      --exact hvanish hBpow hBnot
-  -- 連結
-  exact Eq.trans (Eq.trans h0 h2) hshrink
-  -/
+/-- 重み（バイアス）`|V| - 2|B|`（Int 型）。 -/
+def Bias
+  (V : Finset α) (B : Finset α) : Int :=
+  (V.card : Int) - (2 : Int) * (B.card : Int)
+
+/-!
+Charging/Barrier の主張を、このスレッドでは **仮定（axiom）として使用可** とします。
+Thread A/B で証明される内容をここから参照する位置付けです。
+-/
+/-- ★ Charging/Barrier 不等式（供給用・このスレッドでは仮定可） -/
+--まだどこでも証明されていない。スレッドAで証明されるのか？
+axiom charging_barrier_ineq
+  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (hV : supportedOn V R) :
+  ∑ B ∈ (Rep (Q := Q)).powerset,
+      Missing (V := V) (R := R) (Q := Q) B * Bias (V := V) B
+    ≤ 0
+
+/-- 展開形（C′ がそのまま欲しい形）。 -/
+--メインから参照する予定
+theorem charging_barrier_ineq_expanded
+  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (hV : supportedOn V R) :
+  ∑ B ∈ (Rep (Q := Q)).powerset,
+      ( (2 : Int) ^ (Free (Q := Q)).card - ((fiber V R Q B).card : Int) )
+        * ( (V.card : Int) - (2 : Int) * (B.card : Int) )
+    ≤ 0 := by
+  -- 定義を展開して公理を適用
+  change
+    ∑ B ∈ (Rep (Q := Q)).powerset,
+        Missing (V := V) (R := R) (Q := Q) B * Bias (V := V) B
+      ≤ 0
+  exact charging_barrier_ineq (V := V) (R := R) (Q := Q) hV
+
+lemma card_contractRules_lt_of_nonninj
+  (R : Finset (Rule α))
+  {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α)
+  (noninj :
+    ∃ t₁ ∈ R, ∃ t₂ ∈ R, t₁ ≠ t₂ ∧
+      (σ (π t₁.1), σ (π t₁.2.1), σ (π t₁.2.2))
+        = (σ (π t₂.1), σ (π t₂.2.1), σ (π t₂.2.2))) :
+  (contractRules (π := π) (σ := σ) R).card < R.card := by
+  classical
+  let f : Rule α → Rule α :=
+    fun t => (σ (π t.1), σ (π t.2.1), σ (π t.2.2))
+  rcases noninj with ⟨t₁, ht₁, t₂, ht₂, hne, heq⟩
+  -- 像は t₂ を消しても変わらない
+  have hsub₁ :
+      (R.image f) ⊆ ((R.erase t₂).image f) := by
+    intro y hy
+    rcases Finset.mem_image.mp hy with ⟨s, hsR, hys⟩
+    by_cases hs : s = t₂
+    · -- s = t₂ の像は t₁ の像に等しいので、erase側にも入る
+      have hs' : f s = f t₁ := by
+        have : f t₂ = f t₁ := by exact Eq.symm heq
+        exact (by cases hs; simpa using this)
+      have ht₁erase : t₁ ∈ R.erase t₂ :=
+        Finset.mem_erase.mpr ⟨Ne.symm hne.symm, ht₁⟩
+      subst hs hys
+      simp_all only [ne_eq, Prod.mk.injEq, Finset.mem_erase, not_false_eq_true, and_self, Finset.mem_image, Prod.exists, f]
+      apply Exists.intro
+      · tauto
+    · have hsErase : s ∈ R.erase t₂ := Finset.mem_erase.mpr ⟨hs, hsR⟩
+      exact Finset.mem_image.mpr ⟨s, hsErase, hys⟩
+
+  have hsub₂ :
+      ((R.erase t₂).image f) ⊆ (R.image f) := by
+    intro y hy
+    rcases Finset.mem_image.mp hy with ⟨s, hsErase, hys⟩
+    exact Finset.mem_image.mpr ⟨s, (Finset.mem_erase.mp hsErase).2, hys⟩
+  have himage_eq : (R.image f) = ((R.erase t₂).image f) :=
+    Finset.Subset.antisymm hsub₁ hsub₂
+  have hcard_le_erase :
+      ((R.erase t₂).image f).card ≤ (R.erase t₂).card :=
+    Finset.card_image_le (s := R.erase t₂) (f := f)
+  have hle : (R.image f).card ≤ (R.erase t₂).card := by
+    have hc : (R.image f).card = ((R.erase t₂).image f).card :=
+      congrArg Finset.card himage_eq
+    exact hc.le.trans hcard_le_erase
+  have hlt_erase : (R.erase t₂).card < R.card := by
+    exact Finset.card_erase_lt_of_mem ht₂
+  exact lt_of_le_of_lt hle hlt_erase
+
+/-- ★（C/C′の合成結論をこのスレッドで使える形にまとめた最小インターフェース）
+SCC 縮約に対して NDS₂ は非減（C′の `nds2_family_nonpos_of_debt_nonpos` と
+C 側の Charging/Barrier 不等式＋R₁側因数分解式から導かれる総括）。 -/
+axiom nds_nondec_contractRules
+  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (hV : supportedOn V R) :
+  NDS2 V (family V R)
+    ≤ NDS2 V (family V (contractRules (π := Q.π) (σ := Q.σ) R))
+
+/-- ★ メイン定理：SCC 縮約は SafeShrink。 -/
+theorem SCC_is_SafeShrink
+  (V : Finset α) (R : Finset (Rule α))
+  (hV : supportedOn V R)
+  (Q : SCCQuot α V R) [DecidableEq Q.β]
+  (noninj :
+    ∃ t₁ ∈ R, ∃ t₂ ∈ R, t₁ ≠ t₂ ∧
+      (Q.σ (Q.π t₁.1), Q.σ (Q.π t₁.2.1), Q.σ (Q.π t₁.2.2))
+        = (Q.σ (Q.π t₂.1), Q.σ (Q.π t₂.2.1), Q.σ (Q.π t₂.2.2))) :
+  SafeShrink V R (contractRules (π := Q.π) (σ := Q.σ) R) := by
+  classical
+  -- smaller：非単射ペアがあるので真に減る
+  have hsmall :
+      (contractRules (π := Q.π) (σ := Q.σ) R).card < R.card :=
+    card_contractRules_lt_of_nonninj (R := R) (π := Q.π) (σ := Q.σ) noninj
+  -- supported：代表は常に V 内
+  have hsup :
+      supportedOn V (contractRules (π := Q.π) (σ := Q.σ) R) :=
+    supportedOn_contractRules (V := V) (R := R) (π := Q.π) (σ := Q.σ) Q.σ_in_V
+  -- nds_nondec：C/C′の合成結果（このスレッドでは公理として使用可）
+  have hnds :
+      NDS2 V (family V R)
+        ≤ NDS2 V (family V (contractRules (π := Q.π) (σ := Q.σ) R)) :=
+    nds_nondec_contractRules (V := V) (R := R) (Q := Q) hV
+  exact ⟨hsmall, hsup, hnds⟩
+
+end ThreadC

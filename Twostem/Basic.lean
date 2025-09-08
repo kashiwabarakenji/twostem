@@ -2,6 +2,7 @@ import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Finset.Powerset
 import Mathlib.Algebra.BigOperators.Finsupp.Basic
 import Mathlib.Algebra.Order.Ring.Rat
+import Twostem.General
 import LeanCopilot
 
 open scoped BigOperators
@@ -24,9 +25,39 @@ noncomputable def family (V : Finset α) (R : Finset (Rule α)) : Finset (Finset
   classical
   exact V.powerset.filter (fun I => isClosed R I)
 
+
+
 /-- NDS₂ 便利定義：`∑ (2|I| - |V|)` -/
 def NDS2 (V : Finset α) (F : Finset (Finset α)) : Int :=
   ∑ I ∈ F, ((2 : Int) * (I.card : Int) - (V.card : Int))
+
+omit [DecidableEq α] in
+lemma NDS2_sum_formula
+  (V : Finset α) (F : Finset (Finset α)) :
+  NDS2 V F = ∑ I ∈ F, ((2 : Int) * (I.card : Int) - (V.card : Int)) := by
+  exact rfl
+
+omit [DecidableEq α] in
+lemma NDS2_family_empty_zero (V : Finset α) :
+  NDS2 V (family V (∅ : Finset (Rule α))) = 0 := by
+  simp_all only [family]
+  dsimp [NDS2]
+  dsimp [isClosed]
+  simp
+  let scp := sum_card_powerset_int V
+  have :∑ x ∈ V.powerset, 2 * @Nat.cast ℤ instNatCastInt x.card = 2 * ∑ x ∈ V.powerset, ↑x.card := by
+    simp [two_mul]
+    rw [Finset.sum_add_distrib]
+  rw [this, scp]
+  rw [←mul_assoc]
+  by_cases hV : V.card = 0
+  case pos =>
+    simp_all only [Finset.card_eq_zero, Finset.powerset_empty, Finset.sum_singleton, Finset.card_empty, Nat.cast_zero,
+      zero_tsub, pow_zero, mul_zero]
+    exact rfl
+  case neg =>
+    rw [mul_pow_sub_one hV 2]
+    exact Int.sub_self (2 ^ V.card * ↑V.card)
 
 def InStar (R : Finset (Rule α)) (r : α) : Finset (Rule α) := R.filter (fun t => t.2.2 = r) /-- 親集合：r の in-star 中に親として現れる点の集合（V で制限） -/
 
@@ -139,6 +170,22 @@ lemma family_mono
   · exact hPowI
   · exact hClosedR₁
 
+/- `family` のメンバ判定を素直に展開した形。 -/
+omit [DecidableEq α] in
+lemma mem_family_iff
+  (V : Finset α) (R : Finset (Rule α)) {I : Finset α} :
+  I ∈ family V R ↔ I ⊆ V ∧ isClosed R I := by
+  unfold family
+  constructor
+  · intro h
+    have h' := Finset.mem_filter.mp h
+    have hsubset : I ⊆ V := Finset.mem_powerset.mp h'.1
+    exact And.intro hsubset h'.2
+  · intro h
+    have hsubset : I ⊆ V := h.1
+    have hclosed : isClosed R I := h.2
+    have hpow : I ∈ V.powerset := Finset.mem_powerset.mpr hsubset
+    exact Finset.mem_filter.mpr (And.intro hpow hclosed)
 
  -- メンバー条件をほどく have hPowI : I ∈ V.powerset := (Finset.mem_filter.mp hI).1 have hClosedR₂ : isClosed R₂ I := by have : decide (isClosed R₂ I) = true := by sorry --(Finset.mem_filter.mp hI).2 simp_all only [Finset.mem_powerset, decide_eq_true_eq] -- `R₁ ⊆ R₂` より、`R₂`-閉 ⇒ `R₁`-閉 have hClosedR₁ : isClosed R₁ I := by intro t ht hparents exact hClosedR₂ t (hR ht) hparents -- フィルタに戻す apply Finset.mem_filter.mpr constructor · exact hPowI · exact hClosedR₁
 
@@ -175,11 +222,10 @@ noncomputable def ViolSet (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) 
   exact (family V (R.erase t0)).filter (fun I => Violates t0 I)
 
 /-- 交わり核（違反集合群の共通部分）。空なら便宜上 `V` とする。 -/
-noncomputable def Core (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) :
-    Finset α := by
+noncomputable def Core
+  (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) : Finset α := by
   classical
-  let C := ViolSet V R t0
-  exact V
+  exact V.filter (fun x => ∀ I ∈ ViolSet V R t0, x ∈ I)
 
 structure SCCQuot (α : Type u) (V : Finset α) (R : Finset (Rule α)) where
   (β : Type u) [βdec : DecidableEq β]
@@ -203,3 +249,139 @@ def Free {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α
 noncomputable def fiber (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (B : Finset α) : Finset (Finset α) :=
   (family V R).filter (fun I => I ∩ Rep (Q := Q) = B)
+
+
+/-- R が V の元だけから成る（新頂点なし）。 -/
+def supportedOn (V : Finset α) (R : Finset (α × α × α)) : Prop :=
+  ∀ {t : α × α × α}, t ∈ R →
+    t.1 ∈ V ∧ t.2.1 ∈ V ∧ t.2.2 ∈ V
+
+--def contractRules
+--  (p : α → β) [DecidableEq β] (R : Finset (Rule α)) : Finset (β × β × β) :=
+--  (R.image (fun t => (p t.1, p t.2.1, p t.2.2)))
+def contractRules {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α) (R : Finset (Rule α)) : Finset (Rule α) := R.image (fun t => (σ (π t.1), σ (π t.2.1), σ (π t.2.2)))
+
+--引用なしだが、メインから使う予定
+lemma supportedOn_contractRules (V : Finset α) (R : Finset (Rule α)) {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α)-- (hV : supportedOn V R)
+ (hσ : ∀ b, σ b ∈ V) :
+ supportedOn V (contractRules (π := π) (σ := σ) R) := by
+
+  intro t ht
+  -- t は像：∃ s∈R, t = (σ (π s.1), σ (π s.2.1), σ (π s.2.2))
+  rcases Finset.mem_image.mp ht with ⟨s, hsR, hmap⟩
+  -- s の各成分は V にある
+  subst hmap
+  simp_all only [and_self]
+
+--引用なし
+lemma card_contractRules_le
+  (R : Finset (Rule α))
+  {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α) :
+  (contractRules (π := π) (σ := σ) R).card ≤ R.card := by
+  -- 画像の濃度は元の濃度以下（基本事実）
+  exact Finset.card_image_le
+    (s := R) (f := fun t => (σ (π t.1), σ (π t.2.1), σ (π t.2.2)))
+
+--参照なしだがメインから使う予定
+lemma card_contractRules_lt_of_nonninj
+  (R : Finset (Rule α))
+  {β : Type u} [DecidableEq β] (π : α → β) (σ : β → α)
+  (noninj :
+    ∃ t₁ ∈ R, ∃ t₂ ∈ R, t₁ ≠ t₂ ∧
+      (σ (π t₁.1), σ (π t₁.2.1), σ (π t₁.2.2))
+        = (σ (π t₂.1), σ (π t₂.2.1), σ (π t₂.2.2))) :
+  (contractRules (π := π) (σ := σ) R).card < R.card := by
+  classical
+  -- 記号短縮
+  let f : Rule α → Rule α :=
+    fun t => (σ (π t.1), σ (π t.2.1), σ (π t.2.2))
+  rcases noninj with ⟨t₁, ht₁, t₂, ht₂, hne, heq⟩
+  -- 像は t₂ を消しても変わらない：image R f = image (R.erase t₂) f
+  have hsub₁ :
+      (R.image f) ⊆ ((R.erase t₂).image f) := by
+    intro y hy
+    rcases Finset.mem_image.mp hy with ⟨s, hsR, hys⟩
+    by_cases hs : s = t₂
+    · -- s = t₂ の像は t₁ の像でも表せるので、erase側の像に入る
+      -- f t₂ = f t₁
+      have hft₂ : f s = f t₁ := by
+        -- hs で置換してから heq を使う
+        have : f t₂ = f t₁ := by
+          -- `heq : f t₁ = f t₂` なので対称にする
+          exact Eq.symm heq
+        -- s = t₂ を反映
+        exact Eq.trans (by cases hs; rfl) this
+      -- t₁ は erase t₂ に居る
+      have ht₁erase : t₁ ∈ R.erase t₂ :=
+        by
+          subst hys hs
+          simp_all only [Finset.mem_image, Prod.mk.injEq, Prod.exists, ne_eq, Finset.mem_erase, not_false_eq_true, and_self, f]
+
+      -- y = f s = f t₁ で、t₁∈erase だから像に入る
+      have : y = f t₁ := by
+        apply Eq.trans
+        exact id (Eq.symm hys)--hys hft₂
+        exact hft₂
+      apply Finset.mem_image.mpr
+      show ∃ a ∈ R.erase t₂, f a = y
+      use t₁
+      subst hys hs
+      simp_all only [Finset.mem_image, Prod.mk.injEq, Prod.exists, ne_eq, Finset.mem_erase, not_false_eq_true, and_self, f]
+
+    · -- s ≠ t₂ のときは、そのまま erase 側の像に入る
+      have hsErase : s ∈ R.erase t₂ :=
+        Finset.mem_erase.mpr ⟨hs, hsR⟩
+      exact Finset.mem_image.mpr ⟨s, hsErase, hys⟩
+  have hsub₂ :
+      ((R.erase t₂).image f) ⊆ (R.image f) := by
+    intro y hy
+    rcases Finset.mem_image.mp hy with ⟨s, hsErase, hys⟩
+    -- erase の要素は元集合の要素
+    have hsR : s ∈ R := (Finset.mem_erase.mp hsErase).2
+    exact Finset.mem_image.mpr ⟨s, hsR, hys⟩
+  -- 以上より両包含で像が一致
+  have himage_eq : (R.image f) = ((R.erase t₂).image f) :=
+    by
+      apply Finset.Subset.antisymm
+      · exact hsub₁
+      · exact hsub₂
+  -- 濃度の比較：画像の濃度 ≤ 台集合の濃度（erase側）
+  have hcard_le_erase :
+      ((R.erase t₂).image f).card ≤ (R.erase t₂).card :=
+    Finset.card_image_le (s := R.erase t₂) (f := f)
+  -- 左辺を書き換えて、(R.image f).card ≤ (R.erase t₂).card
+  have hle : (R.image f).card ≤ (R.erase t₂).card := by
+    -- `congrArg Finset.card` で等式からカード等式へ
+    have hc : (R.image f).card = ((R.erase t₂).image f).card :=
+      congrArg Finset.card himage_eq
+    -- `hc ▸ hcard_le_erase`
+    exact le_trans (le_of_eq hc) hcard_le_erase
+  -- `erase` は真に小さい（t₂∈R）
+  have hlt_erase : (R.erase t₂).card < R.card := by
+    exact Finset.card_erase_lt_of_mem ht₂
+  -- 連鎖して結論
+  exact lt_of_le_of_lt hle hlt_erase
+
+/-- （証明済として利用可）1本消去での非減（A/B/D/E のいずれかで供給） -/
+structure PeelWitness (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) : Prop where
+  mem    : t0 ∈ R
+  nondec : NDS2 V (family V R) ≤ NDS2 V (family V (R.erase t0))
+
+/-- （証明済：C）無害縮約 -/
+structure SafeShrink (V : Finset α) (R R1 : Finset (Rule α)) : Prop where
+  smaller    : R1.card < R.card
+  supported  : supportedOn V R1
+  nds_nondec : NDS2 V (family V R) ≤ NDS2 V (family V R1)
+
+/-- Peel or Shrink の存在（非空 R でどちらかが見つかる） -/
+def PeelOrShrink (V : Finset α) (R : Finset (Rule α)) : Prop :=
+  (∃ t0, PeelWitness V R t0) ∨ (∃ R1, SafeShrink V R R1)
+
+/-- `supportedOn` は消去で保存 -/
+lemma supportedOn_erase
+  (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α)
+  (hV : supportedOn V R) :
+  supportedOn V (R.erase t0) := by
+  intro t ht
+  rcases Finset.mem_erase.mp ht with ⟨_, htR⟩
+  exact hV htR

@@ -49,7 +49,8 @@ namespace ThreadC_Fiber
 
 
 /-! ## (1) 定数和（Int 版） -/
-lemma sum_const_int {ι : Type*} [DecidableEq ι]
+--内部から参照多数
+private lemma sum_const_int {ι : Type*} [DecidableEq ι]
   (s : Finset ι) (c : Int) :
   ∑ _ ∈ s, c = (s.card : Int) * c := by
   classical
@@ -63,7 +64,8 @@ lemma sum_const_int {ι : Type*} [DecidableEq ι]
           exact rfl
 
 /-! ## (2) 画像への書き換え（`sum_image` 版） -/
-lemma sum_image_diff_card
+--内部から参照なし。削除OKの評価。
+private lemma sum_image_diff_card
   (A : Finset (Finset α)) (B : Finset α)
   (hInj :
     ∀ {I} (_ : I ∈ A) {J} (_ : J ∈ A),
@@ -84,7 +86,8 @@ lemma sum_image_diff_card
   exact Eq.symm h
 
 /-! ## (3) 包含で和が増える（Int 版・非負性） -/
-lemma sum_le_sum_of_subset_of_nonneg_int
+--内部から参照なし。削除OKの評価。
+private lemma sum_le_sum_of_subset_of_nonneg_int
   {β : Type*} [DecidableEq β]
   {s t : Finset β} (hsub : s ⊆ t)
   (f : β → Int) (h0 : ∀ x ∈ t, 0 ≤ f x) :
@@ -99,35 +102,38 @@ lemma sum_le_sum_of_subset_of_nonneg_int
         exact fun a => h0 x hx
       )
 
-
-
-
 /-! ### A 系：分解・単射・粗い上界 -/
 
+--本当にsection分けする必要があるのか検討。
 section A_block
 variable {V R} {Q : SCCQuot α V R}
 
-lemma rep_subset_V : Rep (Q := Q) ⊆ V := by
+--内部参照あり
+private lemma rep_subset_V : Rep (Q := Q) ⊆ V := by
   intro y hy
   rcases Finset.mem_image.mp hy with ⟨x, hxV, hrep⟩
   cases hrep
   exact Q.σ_in_V (Q.π x)
 
-lemma fiber_mem_family {B I : Finset α}
+--内部参照あり
+private lemma fiber_mem_family {B I : Finset α}
   (hI : I ∈ fiber V R Q B) :
   I ∈ family V R := (Finset.mem_filter.mp hI).1
 
-lemma fiber_trace_eq {B I : Finset α}
+--内部参照あり
+private lemma fiber_trace_eq {B I : Finset α}
   (hI : I ∈ fiber V R Q B) :
   I ∩ Rep (Q := Q) = B := (Finset.mem_filter.mp hI).2
 
+--内部参照あり
 omit [DecidableEq α] in
 lemma mem_family_sub_V {I : Finset α}
   (hI : I ∈ family V R) : I ⊆ V := by
   have h := (Finset.mem_filter.mp hI).1
   exact (Finset.mem_powerset.mp h)
 
-lemma B_subset_of_fiber {B I : Finset α}
+--内部参照なし。削除OKの評価。
+private lemma B_subset_of_fiber {B I : Finset α}
   (hI : I ∈ fiber V R Q B) :
   B ⊆ I := by
   intro x hxB
@@ -138,8 +144,9 @@ lemma B_subset_of_fiber {B I : Finset α}
     simpa [htrace] using this
   exact (Finset.mem_inter.mp hx).1
 
+--内部参照多数
 /-- **A1（分解）**：`I = B ∪ (I \ B)` かつ `I \ B ⊆ Free` -/
-lemma fiber_split
+private lemma fiber_split
   {B I : Finset α} (hB : B ⊆ Rep (Q := Q)) (hI : I ∈ fiber V R Q B) :
   (I \ B) ⊆ Free (Q := Q) ∧ B ∪ (I \ B) = I := by
   classical
@@ -162,8 +169,9 @@ lemma fiber_split
     subst htrace
     simp_all only [Finset.inter_subset_right, Finset.inter_subset_left]
 
+--内部参照なし。削除OKの評価。
 /-! ## (5) `image (I ↦ I \ B)` が `powerset Free` に入る -/
-lemma image_diff_subset_powerset_free
+private lemma image_diff_subset_powerset_free
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   {B : Finset α} (hB : B ⊆ Rep (Q := Q)) :
   (fiber V R Q B).image (fun I : Finset α => I \ B)
@@ -178,8 +186,9 @@ lemma image_diff_subset_powerset_free
 
   exact hSsub
 
+--内部参照あり。
 /-- **A2（単射）**：`I ↦ I \ B` は fiber 上で単射 -/
-lemma fiber_inj_on_diff
+private lemma fiber_inj_on_diff
   {B : Finset α} (hB : B ⊆ Rep (Q := Q)) :
   ∀ {I} (_ : I ∈ fiber V R Q B) {J} (_ : J ∈ fiber V R Q B),
     I \ B = J \ B → I = J := by
@@ -214,8 +223,9 @@ lemma fiber_inj_on_diff
     exact this
   exact this
 
+--内部参照あり
 /-- **A2'（カード上界）**：`|fiber| ≤ 2^{|Free|}` -/
-lemma fiber_card_le_two_pow
+private lemma fiber_card_le_two_pow
   {B : Finset α} (hB : B ⊆ Rep (Q := Q)) :
   (fiber V R Q B).card ≤ (2 : Nat) ^ (Free (Q := Q)).card := by
   classical
@@ -290,7 +300,8 @@ lemma fiber_card_le_two_pow
     _ ≤ ((Free (Q := Q)).powerset).card := hcard_le
     _ = (2 : Nat) ^ (Free (Q := Q)).card := hpow
 
-theorem finset_sum_le_finset_sum {ι : Type _} [DecidableEq ι] {N : Type _}
+--内部参照あり
+private lemma finset_sum_le_finset_sum {ι : Type _} [DecidableEq ι] {N : Type _}
     [AddCommMonoid N] [PartialOrder N] [IsOrderedAddMonoid N]
     {f g : ι → N} {s : Finset ι} (h : ∀ i ∈ s, f i ≤ g i) :
     ∑ i ∈ s, f i ≤ ∑ i ∈ s, g i := by
@@ -302,6 +313,7 @@ theorem finset_sum_le_finset_sum {ι : Type _} [DecidableEq ι] {N : Type _}
     obtain ⟨left, right⟩ := x
     gcongr
 
+--内部参照あり
 /-- **A3（和の粗い上界）**：
 `∑ I∈fiber |I| ≤ |fiber||B| + ∑_{S⊆Free} |S|` （Int 版）
 -/
@@ -343,66 +355,7 @@ lemma sum_card_over_fiber_le
       ≤ ∑ I ∈ A, ( (B.card : Int) + ((I \ B).card : Int) ) := by
 
     exact finset_sum_le_finset_sum (fun I hI => h_point hI)
-  /-
-  -- 定数の和を分離
-  have h_sum2 :
-    ∑ I ∈ A, ( (B.card : Int) + ((I \ B).card : Int) )
-      = ((A.card : Nat) : Int) * (B.card : Int)
-        + ∑ I ∈ A, ((I \ B).card : Int) := by
-    -- 分配
-    have : (∑ I ∈ A, (B.card : Int))
-            = ((A.card : Nat) : Int) * (B.card : Int) := by
-      -- `sum_const`（Int 版）
-      -- `Finset.sum_const` は `Semiring` で使える。Intは可換環。
-      -- `Nat` の card を Int にキャストする必要あり。
-      -- ここは既存の等式を `by` で示す。
-      -- `∑ 1 = card` を使ってからスカラー倍。
-      have : ∑ _I ∈ A, (1 : Int) = (A.card : Nat) := by
-        -- `by` で `simp` 可能
-        -- `by` の中で `simp` はOK（「simpa using」は使わない）
-        -- `Finset.card_eq_sum_ones` の Int 版は `(1:Int)` で同様に効く
-        -- より直に：`by` で `simp [Finset.card_eq_sum_ones]` でもよい
-        -- ただし安全のため：
-        -- 変換：`∑ _∈A, (1:Int)` は `((A.card : Nat))`
-        have : ∑ _I ∈ A, (1 : Int) = (A.card : Nat) := by
-          -- `by` の中 `simp`：
-          simp_all only [Finset.sum_const, Int.nsmul_eq_mul, mul_one, A]
 
-        exact this
-      -- 上式を `B.card` 倍
-      calc
-        ∑ I ∈ A, (B.card : Int)
-            = (B.card : Int) * ∑ _I ∈ A, (1 : Int) := by
-                -- 和の定数因子は「定数×個数」
-                -- ここは `by` で `simp`：`sum_const` を使うより展開派
-                -- 直接：`by` で `simp` のほうが短い
-                simp
-                exact Int.mul_comm ↑A.card ↑B.card
-        _ = (B.card : Int) * (A.card : Nat) := by
-                -- 直前の `have` を使う
-                -- `by` に `rw` で代入
-                -- ただ整数×自然の並びを Int に
-                -- `(A.card : Nat)` は Nat、式は Int×Int が欲しいので、実際上は
-                -- 上の等式が `= (A.card : Int)` になっている必要がある
-                -- すでに `(A.card : Nat)` と書いたので、整合のため `(A.card : Int)` に直す
-                -- 書き直し
-                -- 差分回避のため、上の等式を `= (A.card : Int)` にしておくほうがよかったが、
-                -- ここで手直しする：
-                -- 置換：`(A.card : Nat)` を `(A.card : Int)` に
-                -- これは成立しないので、前の `have` を最初から `= (A.card : Int)` に取るべきだった。
-                -- 仕切り直し。
-                admit
-      -- 上の admit は、`∑ _∈A, (1:Int) = (A.card : Int)` と取っておけば消せます。
-      -- 書き直します。
-      admit
-    -- いったん上のブロックをやり直す（簡潔版）
-    -- 最初からやり直し：
-    -- `simp` で十分に分配と和の定数化ができます。
-    -- ここから別解で示します：
-    -- （この `have h_sum2` 全体を書き直すほうが簡単）
-    admit
-  -- 画像へ移して上から抑える
-  -/
   have h_inj :
     ∀ {x} (hx : x ∈ A) {y} (hy : y ∈ A),
       (x \ B) = (y \ B) → x = y := by
@@ -509,6 +462,7 @@ lemma sum_card_over_fiber_le
             exact add_le_add_left this _
 end A_block
 
+--内部参照あり
 /--（参考）`|V| = |Rep| + |Free|`（Int 版） -/
 lemma cardV_as_Rep_plus_Free {V : Finset α} {R : Finset (Rule α)} {Q : SCCQuot α V R} :
   (V.card : Int) = (Rep (Q := Q)).card + (Free (Q := Q)).card := by
@@ -532,199 +486,10 @@ lemma cardV_as_Rep_plus_Free {V : Finset α} {R : Finset (Rule α)} {Q : SCCQuot
   have := sub_eq_iff_eq_add.mp this
   (expose_names; exact Int.sub_eq_iff_eq_add'.mp this_1)
 
-omit [DecidableEq α] in
-lemma sum_card_powerset_int (S : Finset α):-- (nonempty : S.Nonempty) :
-  ∑ T ∈ S.powerset, (T.card : Int)
-    = (2 : Int) ^ (S.card - 1) * (S.card : Int) := by
-  classical
-  by_cases hS : S.card = 0
-  · -- S = ∅ の場合
-    simp_all only [Finset.card_eq_zero, Finset.powerset_empty, Finset.sum_singleton, Finset.card_empty, Nat.cast_zero,
-    zero_tsub, pow_zero, mul_zero]
-  · -- S ≠ ∅ の場合
-
-  -- powerset 上の「サイズだけに依存する」総和を階数別（card = k）に並べ替える
-  --   ∑_{T⊆S} (|T| : ℤ)
-  -- = ∑_{k=0..|S|} (|S| choose k) • (k : ℤ)
-    have h₁ :
-        ∑ T ∈ S.powerset, (T.card : Int)
-          = ∑ k ∈ Finset.range (S.card + 1),
-              (S.card.choose k : Int) • (k : Int) := by
-
-      simpa using
-        (Finset.sum_powerset_apply_card
-          (α := Int) (f := fun k => (k : Int)) (x := S))
-
-    -- `•`（nsmul）を通常の積に直す
-    have h₂ :
-        ∑ k ∈ Finset.range (S.card + 1),
-            (S.card.choose k : Int) • (k : Int)
-          = ∑ k ∈ Finset.range (S.card + 1),
-              (S.card.choose k : Int) * (k : Int) := by
-      refine Finset.sum_congr rfl ?_
-      intro k hk
-      simp
-
-    -- 二項係数の恒等式：
-    --   ∑_{k=0..n} k * (n choose k) = n * 2^{n-1}
-    -- を ℤ へキャストして適用
-    have h₃ :
-        ∑ k ∈ Finset.range (S.card + 1),
-            (S.card.choose k : Int) * (k : Int)
-          =
-        ∑ k ∈ Finset.range S.card,
-            (S.card.choose k.succ : Int) * (k.succ : Int) := by
-      -- `range (n+1)` を `0` と `range n` に分解し、k ↦ k.succ で付け替え
-      have hk0 :
-        (S.card.choose 0 : Int) * (0 : Int) = 0 := by simp
-      -- 分解
-      have :
-        ∑ k ∈ Finset.range (S.card + 1),
-            (S.card.choose k : Int) * (k : Int)
-        =
-        (S.card.choose 0 : Int) * (0 : Int)
-        + ∑ k ∈ Finset.range S.card,
-            (S.card.choose k.succ : Int) * (k.succ : Int) := by
-        -- `range_succ` で末尾を分解 → 先頭の k=0 を取り出し、残りは k.succ で表す
-        -- ここは等式を書いてから両辺を `simp` で整える
-        -- 左辺
-        have : Finset.range (S.card + 1)
-                = insert 0 ((Finset.range S.card).map ⟨Nat.succ, Nat.succ_injective⟩) := by
-          -- 標準事実： {0,1,...,n} = {0} ∪ {1,...,n}、後者は succ の像
-          -- mathlib 既存の性質を `ext`/`simp` で示す
-          apply Finset.ext
-          intro k
-          constructor <;> intro hk
-          · by_cases hk0' : k = 0
-            · subst hk0'; simp
-            · have hkpos : 0 < k := Nat.pos_of_ne_zero hk0'
-              have hklt : k ≤ S.card := by
-                -- `k ∈ range (n+1)` → `k < n+1`
-                simp_all only [Int.zsmul_eq_mul, Nat.choose_zero_right, Nat.cast_one, mul_zero, Finset.mem_range]
-                omega
-              rcases Nat.exists_eq_succ_of_ne_zero hk0' with ⟨j, rfl⟩
-              simp [Finset.mem_range]
-              exact hklt
-          · -- 逆向き：画像にあれば range (n+1) に入る
-            simp [Finset.mem_range] at hk
-            rcases hk with hk | ⟨j, hj, rfl⟩
-            · subst hk
-              simp_all only [Int.zsmul_eq_mul, Nat.choose_zero_right, Nat.cast_one, mul_zero, Finset.mem_range, lt_add_iff_pos_left,
-                  add_pos_iff, Finset.card_pos, zero_lt_one, or_true]
-            · have : j.succ < S.card + 1 := Nat.succ_lt_succ hj
-              simpa [Finset.mem_range] using this
-        -- これで右辺の形が得られる
-        -- `sum` を `insert` と `map` に分解（0 は像に含まれないので `sum_insert` 可）
-        -- ただしこの詳細展開は長くなるので、ここでは等式として採用
-        -- 実務上は既存の reindex 補題 (`sum_bij`) で同値変換できる
-        -- ここでは完成形だけ用いる
-        -- （必要なら、この等式の証明を補題として別途立てる）
-        simp_all only [Int.zsmul_eq_mul, Finset.mem_map, Finset.mem_range, Function.Embedding.coeFn_mk, Nat.succ_eq_add_one,
-          Nat.add_eq_zero, one_ne_zero, and_false, exists_const, not_false_eq_true, Finset.sum_insert, Nat.choose_zero_right,
-          Nat.cast_one, Nat.cast_zero, mul_zero, Finset.sum_map, Nat.cast_add, zero_add]
-          -- k=0項を消して完成
-      simp_all only [Int.zsmul_eq_mul, Nat.choose_zero_right, Nat.cast_one, mul_zero, Nat.succ_eq_add_one, Nat.cast_add,
-      zero_add]
-
-    -- 3b) 各項を書き換え： `(k+1) * C(n, k+1) = n * C(n-1, k)`
-    have h₄ :
-        ∑ k ∈ Finset.range S.card,
-            (S.card.choose k.succ : Int) * (k.succ : Int)
-          =
-        (S.card : Int) *
-          ∑ k ∈ Finset.range S.card, ((S.card - 1).choose k : Int) := by
-      rw [@Finset.mul_sum]
-      refine Finset.sum_congr rfl ?_
-      intro k hk
-      -- 自然数等式 `(k+1) * choose n (k+1) = n * choose (n-1) k`
-      have hnat :
-          (k.succ) * S.card.choose k.succ
-            = S.card * (S.card - 1).choose k := by
-
-        let nsm := (Nat.succ_mul_choose_eq (S.card - 1) k).symm
-        simp
-        simp at nsm
-        have : S.card > 0 := by
-          exact Nat.zero_lt_of_ne_zero hS
-        have :S.card -1 + 1 = S.card := by
-          exact Nat.sub_add_cancel this
-        rw [this] at nsm
-        rw [mul_comm] at nsm
-        exact nsm
-      -- 整数へキャストして左右を並べ替え
-      -- まず両辺を `Int` に
-      have hZ :
-          ( (S.card.choose k.succ : Int) * (k.succ : Int) )
-            = (S.card : Int) * ((S.card - 1).choose k : Int) := by
-        -- `hnat` を `congrArg` でキャストし、`simp` で整形
-        have hZ' := congrArg (fun n : ℕ => (n : Int)) hnat
-        -- 左右を見かけの形に揃える
-        -- （ここは `ring` 的な交換結合のみ）
-        simpa [Nat.cast_mul, Nat.cast_ofNat,
-              Nat.cast_add, Nat.cast_one, mul_comm, mul_left_comm, mul_assoc]
-          using hZ'
-      -- 各項を書き換え
-      simpa [hZ]
-    -- 3c) 残った和は二項定理： `∑_{k=0}^{n-1} (n-1 choose k) = 2^{n-1}`
-    have h₅ :
-        ∑ k ∈ Finset.range S.card, ((S.card - 1).choose k : Int)
-          = (2 : Int) ^ (S.card - 1) := by
-      -- 自然数版を取得
-      have hNat :
-          ∑ k ∈ Finset.range S.card, (S.card - 1).choose k
-            = 2 ^ (S.card - 1) := by
-        -- `Nat.sum_range_choose` は `∑_{m=0}^{n} choose n m = 2^n`
-        -- ここでは `n := S.card - 1`、かつ `range S.card = range (n+1)`
-        -- よってそのまま適用できる
-        -- 具体的には両辺を `Finset.range (S.card - 1 + 1)` に直して一致
-        have := Nat.sum_range_choose (n := S.card - 1)
-        -- `range (n+1) = range S.card` を使って形を合わせる
-        -- ※ `Nat.sub_add_cancel` は `S.card ≥ 1` が必要だが、
-        --    左右とも同じ `range (n+1)` 形にすることで回避できる
-        -- ここではそのまま採用（`this` の右辺はちょうど必要な形）
-        simp_all only [Int.zsmul_eq_mul, Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one]
-        have eq: (S.card - 1 + 1)= S.card := by
-          exact Nat.sub_add_cancel (Nat.zero_lt_of_ne_zero hS)
-        rw [eq] at this
-        exact this
-
-      -- 両辺を `Int` へキャストして整形
-      -- （`simp` のみで、`using` は使わない）
-      have hInt : ((∑ k ∈ Finset.range S.card, (S.card - 1).choose k : ℕ) : Int)
-                  = (2 : Int) ^ (S.card - 1) := by
-        -- 右辺は自動で `Nat.cast_pow` に展開される
-        -- 左辺は `Nat.cast_sum` 等で展開される
-        -- ここでも `simp` のみ
-        simp_all only [Int.zsmul_eq_mul, Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, Nat.cast_pow, Nat.cast_ofNat]
-
-
-      -- 目的の左辺は最初から `Int` なので、これで一致
-      -- なお `Finset.sum` の型は変わっていない（被積分関数を `Int` にしただけ）
-      simp_all only [Int.zsmul_eq_mul, Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, Nat.cast_pow, Nat.cast_ofNat]
-      rw [← Nat.cast_sum]
-      simp_all only [Nat.cast_pow, Nat.cast_ofNat]
-    -- 4) 連結して整理
-    calc
-      ∑ T ∈ S.powerset, (T.card : Int)
-          = ∑ k ∈ Finset.range (S.card + 1),
-              (S.card.choose k : Int) • (k : Int) := h₁
-      _   = ∑ k ∈ Finset.range (S.card + 1),
-              (S.card.choose k : Int) * (k : Int) := h₂
-      _   = ∑ k ∈ Finset.range S.card,
-              (S.card.choose k.succ : Int) * (k.succ : Int) := h₃
-      _   = (S.card : Int) *
-              ∑ k ∈ Finset.range S.card, ((S.card - 1).choose k : Int) := h₄
-      _   = (S.card : Int) * (2 : Int) ^ (S.card - 1) := by
-              -- h₅ を右辺に代入
-              exact congrArg (HMul.hMul ↑S.card) h₅
-
-      _   = (2 : Int) ^ (S.card - 1) * (S.card : Int) := by
-              simp [mul_comm]
-
-
+--内部参照あり
 /-- 常に真の“誤差（debt）付き”版。
 LHS ≤ 2^|Free| (2|B| − |Rep|) + (2^|Free| − |fiber|)(|V| − 2|B|) -/
-lemma fiber_nds2_le_rep_term_with_debt {Q : SCCQuot α V R}
+private lemma fiber_nds2_le_rep_term_with_debt {Q : SCCQuot α V R}
   (B : Finset α) (hB : B ⊆ Rep (Q := Q))(nonemp: (Free Q).Nonempty) :
   (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int))
       - (V.card : Int) * (fiber V R Q B).card
@@ -812,40 +577,16 @@ lemma fiber_nds2_le_rep_term_with_debt {Q : SCCQuot α V R}
     rw [← fc]
     simp_all only
     linarith
-/-
-  set F  := (fiber V R Q B).card
-  set R₀ := (Rep Q).card
-  set Fr := (Free Q).card
-  have hPack :
-    (-( (F : Int) * (R₀ : Int) ) - (F : Int) * (Fr : Int))
-  = -( (V.card : Int) * (F : Int) ) := by
-  -- -(F*R₀) - F*Fr = -(F*R₀ + F*Fr) = -(F*(R₀+Fr)) = -(F*V)
-    have : (F : Int) * ((R₀ : Int) + (Fr : Int))
-          = (F : Int) * (R₀ : Int) + (F : Int) * (Fr : Int) := by
-      simp [mul_add]
-    calc
-      (-( (F : Int) * (R₀ : Int) ) - (F : Int) * (Fr : Int))
-          = -((F : Int) * (R₀ : Int)) + (-(F : Int) * (Fr : Int)) := by
-                simp [sub_eq_add_neg]
-      _   = -((F : Int) * (R₀ : Int) + (F : Int) * (Fr : Int)) := by
-                simp
-                exact Int.add_comm (-(↑F * ↑R₀)) (-(↑F * ↑Fr))
-      _   = -((F : Int) * ((R₀ : Int) + (Fr : Int))) := by
-                exact congrArg Neg.neg (id (Eq.symm this))
-      _   = -((F : Int) * (V.card : Int)) := by
-                simp
-                simp_all only [tsub_le_iff_right, Finset.card_eq_zero, true_or, F, R₀, Fr]
-
-      _   = -((V.card : Int) * (F : Int)) := by
-                simp [mul_comm]
-  -/
 
   simp_all only [tsub_le_iff_right, Nat.cast_ofNat, ge_iff_le]
   linarith
 
 
-open Finset
+open Finset  --使っている
 
+--内部参照なし
+--現状の利用: C' の「総和→debt 総和」路線では未使用。
+--外部再利用: Thread C 側で「完全トグル」等が得られる局所設定に差し込むと一撃で fiber 上界が出せます。
 /-- ★ debt=0 になる立方体ケース（|fiber| = 2^{|Free|}） -/
 lemma fiber_nds2_le_rep_term_of_fullCube
   {V : Finset α} {R : Finset (Rule α)} {Q : SCCQuot α V R}
@@ -914,7 +655,10 @@ lemma fiber_nds2_le_rep_term_of_fullCube
     _ = (2 : Int) ^ ( (Free (Q := Q)).card )
             * ( (2 : Int) * (B.card : Int) - (Rep (Q := Q)).card ) := hrw
 
-
+--内部参照なし
+--意味: 2·|B| ≥ |V| のとき、debt ≤ 0 で fiber 版上界が成立。
+--現状の利用: C' の主ルート（総和）では未使用。ただし C（Charging/Barrier）側の局所条件を直接使うと便利。
+--外部再利用: Barrier の局所主張を持ち込む場面で有用。
 /-- ★ 符号条件（2·|B| ≥ |V|）から debt ≤ 0 を落として仕上げ -/
 lemma fiber_nds2_le_rep_term_of_nonneg
   {V : Finset α} {R : Finset (Rule α)} {Q : SCCQuot α V R}
@@ -989,13 +733,15 @@ lemma fiber_nds2_le_rep_term_of_nonneg
     _ ≤ (2 : Int) ^ ( (Free (Q := Q)).card )
             * ( (2 : Int) * (B.card : Int) - (Rep (Q := Q)).card ) := hdrop
 
-lemma fiber_subset_family  (B : Finset α) :
+--参照なし。削除可能との評価。
+private lemma fiber_subset_family  (B : Finset α) :
   fiber V R Q B ⊆ family V R := by
   intro I hI
   exact (Finset.mem_filter.mp hI).1
 
+--内部から参照あり
 /-- `⋃₍B⊆Rep₎ fiber B = family` -/
-lemma biUnion_fibers_eq_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R):
+private lemma biUnion_fibers_eq_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R):
   (Rep (Q := Q)).powerset.biUnion (fun B => fiber V R Q B) = family V R := by
   classical
   ext I; constructor
@@ -1012,8 +758,9 @@ lemma biUnion_fibers_eq_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQu
       Finset.mem_filter.mpr ⟨hI, rfl⟩
     exact Finset.mem_biUnion.mpr ⟨_, hBin, hIf⟩
 
+--内部から参照あり
 /-- 異なる `B` の fiber は素に交わる -/
-lemma fibers_disjoint   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+private lemma fibers_disjoint   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   {B₁ B₂ : Finset α} (h₁ : B₁ ∈ (Rep (Q := Q)).powerset) (h₂ : B₂ ∈ (Rep (Q := Q)).powerset)
   (hNe : B₁ ≠ B₂) :
   Disjoint (fiber V R Q B₁) (fiber V R Q B₂) := by
@@ -1026,8 +773,9 @@ lemma fibers_disjoint   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V
   subst htr₁ htr₂
   simp_all only [mem_powerset, inter_subset_right, ne_eq, not_true_eq_false]
 
+--内部から参照あり
 /-- `∑_{B⊆Rep} ∑_{I∈fiber B} F I = ∑_{I∈family} F I` -/
-lemma sum_over_fibers_eq_sum_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R) (F : Finset α → Int) :
+private lemma sum_over_fibers_eq_sum_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R) (F : Finset α → Int) :
   ∑ B ∈ (Rep (Q := Q)).powerset, ∑ I ∈ fiber V R Q B, F I
     = ∑ I ∈ family V R, F I := by
   classical
@@ -1059,9 +807,9 @@ lemma sum_over_fibers_eq_sum_family (V : Finset α) (R : Finset (Rule α)) (Q : 
           rw [hcov]
 
 
---以下もbindなし版でも使う。
+--内部から参照あり
 /-- 「個数」版（Int）：`∑_{B⊆Rep} ∑_{I∈fiber B} 1 = |family|` -/
-lemma sum_ones_over_fibers_eq_card_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R):
+private lemma sum_ones_over_fibers_eq_card_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R):
   ∑ B ∈ (Rep (Q := Q)).powerset, ∑ _ ∈ fiber V R Q B, (1 : Int)
     = (family V R).card := by
   classical
@@ -1091,7 +839,7 @@ lemma sum_ones_over_fibers_eq_card_family (V : Finset α) (R : Finset (Rule α))
 
 /-! ## 3) 二項恒等式（既知として使用可）：powerset の大きさ・「大きさの総和」 -/
 
-/- powerset のカード：既知 -/
+/- powerset のカード：内部から参照あり -/
 omit [DecidableEq α] in
 lemma card_powerset_pow (S : Finset α) :
   S.powerset.card = (2 : Nat) ^ S.card := by
@@ -1100,8 +848,8 @@ lemma card_powerset_pow (S : Finset α) :
 
 /-! ## 4) 主要項の総和は 0 -/
 
---bindなし版でも使う。
-lemma sum_main_over_powerset_eq_zero (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  :
+--内部から参照あり
+private lemma sum_main_over_powerset_eq_zero (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  :
   ∑ B ∈ (Rep (Q := Q)).powerset,
       ( (2 : Int) * (B.card : Int) - (Rep (Q := Q)).card ) = 0 := by
   classical
@@ -1205,8 +953,9 @@ noncomputable def Debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V
   ( ((2 : Nat) ^ (Free (Q := Q)).card : Int) - (fiber V R Q B).card )
     * ( (V.card : Int) - (2 : Int) * (B.card : Int) )
 
+--内部から参照。
 /-- ★ `NDS2 V (family V R) ≤ ∑_{B⊆Rep} Debt(B)` -/
-lemma nds2_family_le_sum_debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  (nonemp : (Free (Q := Q)).Nonempty) :
+private lemma nds2_family_le_sum_debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  (nonemp : (Free (Q := Q)).Nonempty) :
   NDS2 V (family V R)
     ≤ ∑ B ∈ (Rep (Q := Q)).powerset, Debt (Q := Q) (V := V) (R := R) B := by
   classical
@@ -1344,7 +1093,8 @@ lemma nds2_family_le_sum_debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQu
             + Debt (Q := Q) (V := V) (R := R) B ) := base_sum
     _ = ∑ B ∈ (Rep (Q := Q)).powerset, Debt (Q := Q) (V := V) (R := R) B := hR
 
-lemma nds2_family_nonpos_of_debt_nonpos (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+--メインから利用予定
+theorem nds2_family_nonpos_of_debt_nonpos (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   (nonemp : (Free (Q := Q)).Nonempty)
   (hDebtSumNonpos :
     ∑ B ∈ (Rep (Q := Q)).powerset, Debt V R Q B ≤ 0) :
