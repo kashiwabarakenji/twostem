@@ -120,8 +120,8 @@ private lemma fiber_mem_family {B I : Finset α}
   (hI : I ∈ fiber V R Q B) :
   I ∈ family V R := (Finset.mem_filter.mp hI).1
 
---内部参照あり
-private lemma fiber_trace_eq {B I : Finset α}
+--内部参照あり 外からも使う。
+lemma fiber_trace_eq {B I : Finset α}
   (hI : I ∈ fiber V R Q B) :
   I ∩ Rep (Q := Q) = B := (Finset.mem_filter.mp hI).2
 
@@ -144,9 +144,9 @@ private lemma B_subset_of_fiber {B I : Finset α}
     simpa [htrace] using this
   exact (Finset.mem_inter.mp hx).1
 
---内部参照多数
+--内部参照多数 そとからも。
 /-- **A1（分解）**：`I = B ∪ (I \ B)` かつ `I \ B ⊆ Free` -/
-private lemma fiber_split
+lemma fiber_split
   {B I : Finset α} (hB : B ⊆ Rep (Q := Q)) (hI : I ∈ fiber V R Q B) :
   (I \ B) ⊆ Free (Q := Q) ∧ B ∪ (I \ B) = I := by
   classical
@@ -171,7 +171,7 @@ private lemma fiber_split
 
 --内部参照なし。削除OKの評価。
 /-! ## (5) `image (I ↦ I \ B)` が `powerset Free` に入る -/
-private lemma image_diff_subset_powerset_free
+lemma image_diff_subset_powerset_free
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
   {B : Finset α} (hB : B ⊆ Rep (Q := Q)) :
   (fiber V R Q B).image (fun I : Finset α => I \ B)
@@ -188,7 +188,7 @@ private lemma image_diff_subset_powerset_free
 
 --内部参照あり。
 /-- **A2（単射）**：`I ↦ I \ B` は fiber 上で単射 -/
-private lemma fiber_inj_on_diff
+lemma fiber_inj_on_diff
   {B : Finset α} (hB : B ⊆ Rep (Q := Q)) :
   ∀ {I} (_ : I ∈ fiber V R Q B) {J} (_ : J ∈ fiber V R Q B),
     I \ B = J \ B → I = J := by
@@ -486,10 +486,10 @@ lemma cardV_as_Rep_plus_Free {V : Finset α} {R : Finset (Rule α)} {Q : SCCQuot
   have := sub_eq_iff_eq_add.mp this
   (expose_names; exact Int.sub_eq_iff_eq_add'.mp this_1)
 
---内部参照あり
+--内部参照あり 外からも参照あり。
 /-- 常に真の“誤差（debt）付き”版。
 LHS ≤ 2^|Free| (2|B| − |Rep|) + (2^|Free| − |fiber|)(|V| − 2|B|) -/
-private lemma fiber_nds2_le_rep_term_with_debt {Q : SCCQuot α V R}
+lemma fiber_nds2_le_rep_term_with_debt {Q : SCCQuot α V R}
   (B : Finset α) (hB : B ⊆ Rep (Q := Q))(nonemp: (Free Q).Nonempty) :
   (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int))
       - (V.card : Int) * (fiber V R Q B).card
@@ -775,7 +775,7 @@ private lemma fibers_disjoint   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQ
 
 --内部から参照あり
 /-- `∑_{B⊆Rep} ∑_{I∈fiber B} F I = ∑_{I∈family} F I` -/
-private lemma sum_over_fibers_eq_sum_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R) (F : Finset α → Int) :
+lemma sum_over_fibers_eq_sum_family (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R) (F : Finset α → Int) :
   ∑ B ∈ (Rep (Q := Q)).powerset, ∑ I ∈ fiber V R Q B, F I
     = ∑ I ∈ family V R, F I := by
   classical
@@ -848,8 +848,8 @@ lemma card_powerset_pow (S : Finset α) :
 
 /-! ## 4) 主要項の総和は 0 -/
 
---内部から参照あり
-private lemma sum_main_over_powerset_eq_zero (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  :
+--内部から参照あり。外からもあり。
+lemma sum_main_over_powerset_eq_zero (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  :
   ∑ B ∈ (Rep (Q := Q)).powerset,
       ( (2 : Int) * (B.card : Int) - (Rep (Q := Q)).card ) = 0 := by
   classical
@@ -953,9 +953,9 @@ noncomputable def Debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V
   ( ((2 : Nat) ^ (Free (Q := Q)).card : Int) - (fiber V R Q B).card )
     * ( (V.card : Int) - (2 : Int) * (B.card : Int) )
 
---内部から参照。
+--内部から参照。外部からも参照。
 /-- ★ `NDS2 V (family V R) ≤ ∑_{B⊆Rep} Debt(B)` -/
-private lemma nds2_family_le_sum_debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  (nonemp : (Free (Q := Q)).Nonempty) :
+lemma nds2_family_le_sum_debt  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)  (nonemp : (Free (Q := Q)).Nonempty) :
   NDS2 V (family V R)
     ≤ ∑ B ∈ (Rep (Q := Q)).powerset, Debt (Q := Q) (V := V) (R := R) B := by
   classical
@@ -1105,5 +1105,100 @@ theorem nds2_family_nonpos_of_debt_nonpos (V : Finset α) (R : Finset (Rule α))
   -- 連鎖
   exact le_trans h hDebtSumNonpos
 
+lemma NDS2_family_partition_over_fibers
+  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R):
+  --(hV : supportedOn V R) :
+  NDS2 V (family V R)
+  =
+  ∑ B ∈ (Rep (Q := Q)).powerset,
+      ( (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int))
+        - (V.card : Int) * (fiber V R Q B).card ) := by
+  classical
+  -- 1) 左辺 NDS2 を family 上の和に展開
+  have hNDS :
+      NDS2 V (family V R)
+        = ∑ I ∈ family V R, ((2 : Int) * (I.card : Int) - (V.card : Int)) := by
+    -- 2*∑|I| - |V|*|family| という形ではなく，項ごとの形にしておく
+    -- 下で fiber 二重和に置換しやすい
+    -- 定義からただの書き換え
+    rfl
+
+  -- 2) family の和を fiber の二重和に置換
+  have hSwap :
+      ∑ I ∈ family V R, ((2 : Int) * (I.card : Int) - (V.card : Int))
+        =
+      ∑ B ∈ (Rep (Q := Q)).powerset,
+          ∑ I ∈ fiber V R Q B, ((2 : Int) * (I.card : Int) - (V.card : Int)) :=
+    (sum_over_fibers_eq_sum_family
+      (Q := Q) (V := V) (R := R)
+      (F := fun I : Finset α => (2 : Int) * (I.card : Int) - (V.card : Int))).symm
+
+  -- 3) 各 fiber ごとに「係数を外に出す」「定数和＝カード×定数」を使って整形
+  have hPerFiber :
+      ∀ {B} (_hB : B ∈ (Rep (Q := Q)).powerset),
+        (∑ I ∈ fiber V R Q B, ((2 : Int) * (I.card : Int) - (V.card : Int)))
+        =
+        ( (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int))
+          - (V.card : Int) * (fiber V R Q B).card ) := by
+    intro B hB
+    -- 計算は `simp` で機械的に
+    --   ∑ (2*|I| - |V|) = (∑ 2*|I|) - (∑ |V|)
+    --                  = 2*(∑ |I|) - |V| * |fiber|
+    have :
+        (∑ I ∈ fiber V R Q B, ((2 : Int) * (I.card : Int) - (V.card : Int)))
+        =
+        (∑ I ∈ fiber V R Q B, (2 : Int) * (I.card : Int))
+        - (∑ I ∈ fiber V R Q B, (V.card : Int)) := by
+      -- 和の差に分解
+      simp [Finset.sum_sub_distrib]
+    -- 右辺の二つの和をそれぞれ整理
+    --  (i) ∑ 2*|I| = 2 * ∑ |I|
+    -- (ii) ∑ |V|   = |fiber| * |V|
+    -- そして順序を合わせる
+    calc
+      ∑ I ∈ fiber V R Q B, ((2 : Int) * (I.card : Int) - (V.card : Int))
+          = (∑ I ∈ fiber V R Q B, (2 : Int) * (I.card : Int))
+              - (∑ I ∈ fiber V R Q B, (V.card : Int)) := by
+                exact this
+      _ = (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int))
+            - ((fiber V R Q B).card : Int) * (V.card : Int) := by
+                -- (i) と (ii)
+                -- (i) は `sum_mul`，(ii) は `sum_const_int`
+                have h1 :
+                    ∑ I ∈ fiber V R Q B, (2 : Int) * (I.card : Int)
+                      = (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int)) := by
+                  -- a * ∑ f = ∑ a * f
+                  simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset]
+                  rw [mul_sum]
+                have h2 :
+                    ∑ I ∈ fiber V R Q B, (V.card : Int)
+                      = ((fiber V R Q B).card : Int) * (V.card : Int) := by
+                  -- 定数和
+                  exact ThreadC_Fiber.sum_const_int
+                          (s := fiber V R Q B) (c := (V.card : Int))
+                -- 置換
+                -- 1行で
+                simp [h1, h2]
+      _ = (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int))
+            - (V.card : Int) * (fiber V R Q B).card := by
+                -- 積の順序を合わせる
+                -- （型の都合は `simp` に任せる）
+                simp [mul_comm]
+
+  -- 4) 仕上げ：二重和を fiber ごとの式に変え，LHS と接続
+  calc
+    NDS2 V (family V R)
+        = ∑ I ∈ family V R, ((2 : Int) * (I.card : Int) - (V.card : Int)) := by
+            exact hNDS
+    _ = ∑ B ∈ (Rep (Q := Q)).powerset,
+            ∑ I ∈ fiber V R Q B, ((2 : Int) * (I.card : Int) - (V.card : Int)) := by
+            exact hSwap
+    _ = ∑ B ∈ (Rep (Q := Q)).powerset,
+            ( (2 : Int) * (∑ I ∈ fiber V R Q B, (I.card : Int))
+              - (V.card : Int) * (fiber V R Q B).card ) := by
+            -- fiber ごとに変形
+            apply Finset.sum_congr rfl
+            intro B hB
+            exact hPerFiber hB
 
 end ThreadC_Fiber
