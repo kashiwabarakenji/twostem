@@ -1105,6 +1105,7 @@ theorem nds2_family_nonpos_of_debt_nonpos (V : Finset α) (R : Finset (Rule α))
   -- 連鎖
   exact le_trans h hDebtSumNonpos
 
+--excessの証明で使う。
 lemma NDS2_family_partition_over_fibers
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R):
   --(hV : supportedOn V R) :

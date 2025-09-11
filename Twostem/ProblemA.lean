@@ -11,38 +11,6 @@ variable {α : Type u} [DecidableEq α]
 
 namespace ThreadA
 
-/-! ## 基本定義 -/
-/-
-/-- ルールは `(親, 親, 子)` のタプル -/
-abbrev Rule (α) := α × α × α
-
-/-- `I` が `R`-閉：すべての `(a,b,r) ∈ R` で `a ∈ I ∧ b ∈ I → r ∈ I` -/
-def isClosed (R : Finset (Rule α)) (I : Finset α) : Prop :=
-  ∀ t ∈ R, (t.1 ∈ I ∧ t.2.1 ∈ I) → t.2.2 ∈ I
-
-/-- 閉包族：`V` の冪集合を `isClosed R` でフィルタ -/
-noncomputable def family (V : Finset α) (R : Finset (Rule α)) :
-    Finset (Finset α) := by
-  classical
-  exact V.powerset.filter (fun I => isClosed R I)
-
-/-- 「`t0=(a,b,r)` を破る」：`a,b ∈ I` かつ `r ∉ I` -/
-def Violates (t0 : Rule α) (I : Finset α) : Prop :=
-  t0.1 ∈ I ∧ t0.2.1 ∈ I ∧ t0.2.2 ∉ I
-
-/-- `R.erase t0`-閉かつ `t0` を破る集合全体 -/
-noncomputable def ViolSet (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) :
-    Finset (Finset α) := by
-  classical
-  exact (family V (R.erase t0)).filter (fun I => Violates t0 I)
-
-/-- 交わり核（違反集合群の共通部分）。空なら便宜上 `V` とする。 -/
-noncomputable def Core (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) :
-    Finset α := by
-  classical
-  let C := ViolSet V R t0
-  exact V
--/
 /-- Barrier 仮定：Core が「大きく」「必ず含まれる」。 -/
 structure BarrierHyp (V : Finset α) (R : Finset (Rule α)) (t0 : Rule α) : Prop where
   nonempty  : (ViolSet V R t0) ≠ ∅

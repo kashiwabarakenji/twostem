@@ -3,14 +3,19 @@ import Mathlib.Data.Finset.Powerset
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Nat.Choose.Sum
 import Mathlib.Algebra.BigOperators.Finsupp.Basic
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.Monoid.Defs
 import Mathlib.Algebra.Group.Int.Defs
+import Mathlib.Algebra.Group.Basic
 import Mathlib.Algebra.Order.Group.Int
 import Twostem.General
 import Twostem.Basic
 import Twostem.ProblemCC
+import Twostem.ProblemC
 import LeanCopilot
+
+--このファイルの方針は良くないようで、別のアプローチを試みる。古いアプローチ。
 
 open scoped BigOperators
 open ThreadC_Fiber
@@ -417,7 +422,7 @@ private lemma sum_split_by_filter
             -- hR_yes, hR_no を戻す
             rw [hR_yes, hR_no]
 
--- 直方体＝拡張の全射性（fiber の像が Free.powerset を尽くすこと）
+-- 直方体＝拡張の全射性（fiber の像が Free.powerset を尽くすこと）使われている。
 private lemma fiber_surj_diff_of_isClosedR1
   {α : Type u} [DecidableEq α]
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
@@ -429,7 +434,7 @@ private lemma fiber_surj_diff_of_isClosedR1
   -- 詳細は下の本体で呼び出します。
   admit
 
--- 逆向き：full cube（像が Free.powerset）なら isClosed R₁ B
+-- 逆向き：full cube（像が Free.powerset）なら isClosed R₁ B 使われている。
 private lemma isClosedR1_of_fiber_surj_diff
   {α : Type u} [DecidableEq α]
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
@@ -828,9 +833,21 @@ lemma debt_remainder_absorbed_by_R1_with_const
 
       --ring_nf at fs
       --rw [fs] at this
+      have disj : Disjoint P NCL := by
+        dsimp [NCL]
+        by_contra h
+        simp at h
+        rw [Finset.not_disjoint_iff_nonempty_inter] at h
+        obtain ⟨x, hx⟩ := h
+        simp at hx
+        exact hx.2.2 hx.1
       simp at fs
       have :∑ x ∈ P ∪ NCL, (2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc) =
-  ∑ x ∈ P, (2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc) + ∑ x ∈ NCL, (2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc) := by
+         ∑ x ∈ P, (2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc) + ∑ x ∈ NCL, (2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc) := by
+        rw [Finset.sum_union (Finset.disjoint_val.mp ?_)]
+        (expose_names; exact Finset.disjoint_val.mpr disj_1)
+
+      /- 以下の長い証明が2行になった。Deepseek。
         have :∑ x ∈ P ∪ NCL, (2 * @Nat.cast ℤ instNatCastInt x.card - Rc) = ∑ x ∈ P ∪ NCL, 2 * (@Nat.cast ℤ instNatCastInt x.card) - ∑ x ∈ P ∪ NCL, Rc := by
           apply Finset.sum_sub_distrib
         rw [this]
@@ -839,8 +856,42 @@ lemma debt_remainder_absorbed_by_R1_with_const
         rw [this]
         rw [fs]
         ring_nf
+        have sign: ∑ x ∈ P, ((@Nat.cast ℤ instNatCastInt x.card) * 2) + (-((@Nat.cast ℤ instNatCastInt P.card) * Rc)- Rc * (@Nat.cast ℤ instNatCastInt NCL.card)) = ∑ x ∈ P, ((@Nat.cast ℤ instNatCastInt x.card) * 2) -((@Nat.cast ℤ instNatCastInt P.card) * Rc)- Rc * (@Nat.cast ℤ instNatCastInt NCL.card) := by
+          --apply Finset.sum_congr rfl (fun x hx => Int.sub_eq_add_neg)
+          rw [Int.sub_eq_add_neg]
+          rw [Int.sub_eq_add_neg]
+          rw [Int.sub_eq_add_neg]
+          exact Eq.symm (Int.add_assoc (∑ x ∈ P, ↑x.card * 2) (-(↑P.card * Rc)) (-(Rc * ↑NCL.card)))
+        rw [sign]
         --以降はPだけの等号、NCLだけの等号を作って足し合わせる
-        sorry
+        have hP: ∑ x ∈ P, (2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc) = ∑ x ∈ P, 2 * (@Nat.cast ℤ instNatCastInt x.card) - ∑ x ∈ P, Rc := by
+          apply Finset.sum_sub_distrib
+        have hNCL: ∑ x ∈ NCL, (2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc) = ∑ x ∈ NCL, 2 * (@Nat.cast ℤ instNatCastInt x.card) - ∑ x ∈ NCL, Rc := by
+          apply Finset.sum_sub_distrib
+        have : ∀ x ∈ P, 2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc = -Rc + (@Nat.cast ℤ instNatCastInt x.card)*2 := by
+          intro x hx
+          ring
+
+        let fsc := Finset.sum_congr rfl (fun x hx => this x hx)
+        rw [←fsc]
+        rw [hP]
+        have : ∀ x ∈ NCL, 2 * (@Nat.cast ℤ instNatCastInt x.card) - Rc = -Rc + (@Nat.cast ℤ instNatCastInt x.card)*2 := by
+          intro x hx
+          ring
+        let fsc2 := Finset.sum_congr rfl (fun x hx => this x hx)
+        rw [←fsc2]
+        rw [hNCL]
+        have : ∀ x ∈ P, 2 * (@Nat.cast ℤ instNatCastInt x.card) = (@Nat.cast ℤ instNatCastInt x.card)*2 := by
+          intro x hx
+          ring
+        let fsc3 := Finset.sum_congr rfl (fun x hx => this x hx)
+        rw [←fsc3]
+
+        --have :(-( (@Nat.cast ℤ instNatCastInt P.card) * Rc) - Rc * (@Nat.cast ℤ instNatCastInt NCL.card)) + ∑ x ∈ NCL, (@Nat.cast ℤ instNatCastInt x.card) * 2 = - ∑ x ∈ P, Rc + (∑ x ∈ NCL, 2 * (@Nat.cast ℤ instNatCastInt x.card) - ∑ x ∈ NCL, Rc) := by
+        rw [Finset.sum_const]
+        rw [Finset.sum_const]
+        ring_nf
+      -/
 
       rw [←this]
       exact hMainZero
@@ -887,12 +938,10 @@ lemma debt_remainder_absorbed_by_R1_with_const
                 exact (Int.mul_add A _ _)
     -- 置換
     exact le_trans this (by
-      -- ひとつ前の `have` を適用
-      -- （上で得た「≤ A*( … )」に h1 の等号を適用する）
-      -- すでに `this` 名を使っているため、上の事実に別名を付ける
       rw [h1]
-      sorry
-
+      rw [Int.mul_comm NCL.card Fc]
+      rw [Int.mul_assoc A Fc (NCL.card : Int)]
+      rw [Int.add_comm (A * (Fc * NCL.card : Int)) (A * ∑ B ∈ P, (2 * ↑B.card - Rc))]
       )
 
   -- 表記を戻して完成
@@ -903,3 +952,193 @@ lemma debt_remainder_absorbed_by_R1_with_const
   simp_all only [Finset.mem_filter, Finset.mem_powerset, not_false_eq_true, and_self, Int.ofNat_eq_coe, Int.sub_nonneg,
     tsub_le_iff_right, and_imp, Nat.cast_pow, Nat.cast_ofNat, Finset.sum_sub_distrib, Finset.sum_const,
     Int.nsmul_eq_mul, Finset.card_powerset, neg_sub, NCL, P, S, Fc, Rc, A]
+
+--そのままでは成り立たないようで、方針転換。これはProblem Cのaxiomとして残っている。
+lemma nds_nondec_contractRules
+  {α : Type u} [DecidableEq α]
+  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (hV : supportedOn V R) (nonemp : (Free (Q := Q)).Nonempty) :
+  NDS2 V (family V R) ≤ NDS2 V (family V (R1 (V := V) (R := R) (Q := Q))) := by
+  classical
+  -- 記号短縮
+  set S  : Finset (Finset α) := (Rep (Q := Q)).powerset
+  set P  : Finset (Finset α) := familyRep (V := V) (R := R) (Q := Q)
+  set NC : Finset (Finset α) := S.filter (fun B => B ∉ P)
+
+  -- D2：R 側の大域上界
+  have hD2 :=
+    sum_fiber_bounds_to_debt_sum (V := V) (R := R) (Q := Q) nonemp
+  -- Σ_main を 0 にする
+  have hMain0 :
+    ( (2 : Int) ^ (Free (Q := Q)).card
+        * (∑ B ∈ S, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card)) )
+      = 0 := by
+    have h := sum_main_over_powerset_eq_zero (V := V) (R := R) (Q := Q)
+    -- `∑ … = 0` を左の因子で掛ける
+    -- （掛け算の前取りを書換えで反映）
+    exact by
+      -- h : ∑_{B∈S} (...) = 0
+      -- よって左辺 = (2^|Free|) * 0
+      -- 以下は逐次 `rw` で
+      -- まず和の部分を書き換える
+      -- ここは関数等式 `congrArg` でまとめて置換しても良い
+      have : ∑ B ∈ S, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card) = 0 := h
+      -- 置換
+      -- (a) * (∑ …) = (a) * 0
+      -- 仕上げに `mul_zero`
+      exact (by
+        rw [this]
+        exact (by rw [Int.mul_zero]))
+  -- よって D2 の右辺は Σ Debt のみに縮約
+  have hStep_toDebt :
+      ( (2 : Int) ^ (Free (Q := Q)).card
+          * (∑ B ∈ S, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card))
+        + ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B )
+      = ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B := by
+    -- 0 + ΣDebt = ΣDebt
+    -- 直前の hMain0 を使う
+    -- 加法の第1項を 0 に
+    -- 逐次 `rw` と `simp`
+    have : ( (2 : Int) ^ (Free (Q := Q)).card
+              * (∑ B ∈ S, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card)) )
+            = 0 := hMain0
+    calc
+      ( (2 : Int) ^ (Free (Q := Q)).card
+          * (∑ B ∈ S, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card))
+        + ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B )
+          = 0 + ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B := by
+                rw [this]
+      _   = ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B := by
+                simp
+
+  -- D2 の不等式の右辺を書換え：NDS2 ≤ Σ Debt
+  have hA :
+    NDS2 V (family V R) ≤ ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B := by
+    -- hD2 の右辺を `hStep_toDebt` で置換
+    -- まず hD2 を展開
+    -- NDS2 ≤ (2^|Free|)*Σ_main + Σ_Debt
+    -- = Σ_Debt
+    -- 最後に ≤ の右辺を書換え（等式置換で OK）
+    -- `refine` と `rw` で段階的に
+    have := hD2
+    -- 右辺を等式で置換
+    -- `rw` はゴール側で使うため、`calc` で明示化
+    calc
+      NDS2 V (family V R)
+          ≤ ( (2 : Int) ^ (Free (Q := Q)).card
+                * (∑ B ∈ S, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card))
+              + ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B ) := this
+      _   = ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B := hStep_toDebt
+
+  -- S 上の Debt を（閉＋非閉）に分解（C1）
+  have hSplitDebt :
+    ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B
+      =
+    ∑ B ∈ P,  Debt (V := V) (R := R) (Q := Q) B
+    + ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B := by
+    -- 既証明の分割補題
+    -- `sum_debt_split_by_familyRep`
+    have := sum_debt_split_by_familyRep (V := V) (R := R) (Q := Q)
+    -- S, P, NC の定義に合わせて `rfl`
+    -- 右辺はちょうどこの形
+    exact this
+
+  -- 閉側は 0（既証明：sum_debt_on_familyRep_is_zero）
+  have hFamZero :
+    ∑ B ∈ P, Debt (V := V) (R := R) (Q := Q) B = 0 := by
+    exact sum_debt_on_familyRep_is_zero (V := V) (R := R) (Q := Q)
+
+  -- よって NDS2 ≤ 非閉側の Debt 総和
+  have hB :
+    NDS2 V (family V R) ≤ ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B := by
+    -- hA の右辺を hSplitDebt で分解し、閉側 0 を代入
+    have := hA
+    -- 等式で右辺を書換え
+    have : NDS2 V (family V R)
+            ≤ ( ∑ B ∈ P, Debt (V := V) (R := R) (Q := Q) B
+                + ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B ) := by
+      -- 置換だけ
+      -- （等式で右辺を入れ替える）
+      -- `calc` を使う
+      calc
+        NDS2 V (family V R)
+            ≤ ∑ B ∈ S, Debt (V := V) (R := R) (Q := Q) B := hA
+        _   = ( ∑ B ∈ P, Debt (V := V) (R := R) (Q := Q) B
+                + ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B ) := hSplitDebt
+    -- 右辺の第1項（閉側）を 0 にする
+    -- `have` を `rw` で反映
+    -- ∑_P Debt = 0
+    -- よって NDS2 ≤ 0 + ∑_NC Debt = ∑_NC Debt
+    have := this
+    -- 置換
+    -- まず右辺の `∑_P Debt` を 0 に置換
+    -- その後 `zero_add`
+    -- 逐次 `rw` と `simp`
+    have : NDS2 V (family V R)
+            ≤ 0 + ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B := by
+      -- もとの不等式の右辺を書換え
+      -- `rw [hFamZero]` を使う
+      -- ただし `rw` はゴール右辺の内部に入るため、`conv` を使う方法もある
+      -- ここでは `calc` をスキップして `rw` 直書き
+      -- tactic 的に：
+      --   have := this;
+      --   exact ?_ ; (不等式はそのままなので `rw` が適用される)
+      -- 直接：
+      --   `rw [hFamZero] at this`
+      -- ここでは段階的な calc にせず、`rw` を this に当ててから `exact` でも良いですが、
+      -- そのまま書き換えを結果へ反映します。
+      -- （簡潔のため、下で this を書き換えてから `exact` しています）
+      exact by
+        -- 上の this（不等式）に書換えを適用
+        -- Lean では `have` を更新できないため、改めて記述
+        -- ここは `calc` で書きます
+        calc
+          NDS2 V (family V R)
+              ≤ ( ∑ B ∈ P, Debt (V := V) (R := R) (Q := Q) B
+                  + ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B ) := by
+                    exact this
+          _   = 0 + ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B := by
+                    rw [hFamZero]
+    -- 仕上げ
+    -- 0 + t = t
+    -- これで目標形になる
+    exact by
+      -- from: NDS2 ≤ 0 + Σ_NC Debt
+      -- to:   NDS2 ≤ Σ_NC Debt
+      have := this
+      -- 書換
+      -- `zero_add` を使う
+      simpa using this
+
+  -- 非閉 Debt の総和を R₁ の因数式で抑える（D3）
+  have hAbsorb :
+    ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B
+      ≤ (2 : Int) ^ (Free (Q := Q)).card
+            * (∑ B ∈ P, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card)) := by
+    -- 既証明：debt_remainder_absorbed_by_R1_factorized ではない。
+    sorry
+    --exact debt_remainder_absorbed_by_R1_factorized (V := V) (R := R) (Q := Q)
+
+  -- R₁ 側の因数式
+  have hR1 :
+    NDS2 V (family V (R1 (V := V) (R := R) (Q := Q)))
+      = (2 : Int) ^ (Free (Q := Q)).card
+          * (∑ B ∈ P, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card)) := by
+    exact ThreadC.NDS2_family_contractRules_factorized (V := V) (R := R) (Q := Q) hV
+
+  -- 連鎖して結論
+  calc
+    NDS2 V (family V R)
+        ≤ ∑ B ∈ NC, Debt (V := V) (R := R) (Q := Q) B := hB
+    _   ≤ (2 : Int) ^ (Free (Q := Q)).card
+            * (∑ B ∈ P, ((2 : Int) * (B.card : Int) - (Rep (Q := Q)).card)) := hAbsorb
+    _   = NDS2 V (family V (R1 (V := V) (R := R) (Q := Q))) := by
+            -- 右辺を因数式で置換
+            -- 等式の左右を入れ替えるために `symm` を使わず、calc で右辺に hR1 を適用
+            -- ここは `rw [hR1]` でもよい
+            -- 明示に `rw` で
+            -- 書換
+            -- hR1: NDS2 V (family V R1) = ...
+            -- 逆向きで使うため `symm`
+            have := hR1.symm
+            exact this

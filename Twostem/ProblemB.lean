@@ -9,6 +9,7 @@ import Mathlib.Data.Rat.Cast.Order
 import Mathlib.Tactic.Ring.RingNF
 import Mathlib.Tactic.FieldSimp
 import Twostem.Basic
+import Twostem.BDBasic
 import LeanCopilot
 open scoped Rat
 --import Mathlib.Tactic.NormCast
@@ -355,11 +356,14 @@ lemma parent_load_le_one_over_T
   set S := InStar (R.erase ⟨x,⟨x,r⟩⟩) r with hS
   have hcap : (∑ t ∈ S, if (t.1 = x ∨ t.2.1 = x) then w t else 0) ≤ 1 := by
     -- 容量制約（親 x に集まる重みは ≤ 1）
+    sorry --capacity_at_parentは実装されていない。
+    /-
     have := capacity_at_parent (V := V) (R := R.erase ⟨x,⟨x,r⟩⟩) (r := r) (x := x)
                 (w := w) (hLP := hLP) (hx := hx)
     -- `S` に合わせて書き換え
     dsimp [totalWeight, InStar] at this ⊢
     exact this
+    -/
   -- 各項の同値変形：`isParentOf` は {0,1} なので if に書き換わる
   have hterm :
     ∀ t ∈ S, (w t) / T * isParentOf x t
@@ -390,9 +394,8 @@ lemma parent_load_le_one_over_T
               exact mul_le_mul_of_nonneg_left hcap hnonneg
     _   = 1 / T := by ring_nf
 
-/-- （既知として使う前提）`family V R` の要素は `V` の部分集合。 -/
-axiom family_subsets (V : Finset α) (R : Finset (Rule α)) :
-  ∀ {I : Finset α}, I ∈ family V R → I ⊆ V
+
+
 
 /-- `I ∈ family V R` なら、`x ∉ V` で `chi I x = 0`。 -/
 lemma chi_zero_outsideV_of_mem_family

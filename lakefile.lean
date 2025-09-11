@@ -9,12 +9,14 @@ lean_lib «Twostem» where
   roots := #[
     `Twostem.General,
     `Twostem.Basic,
+    `Twostem.BDBasic,
     `Twostem.ProblemA,
     `Twostem.ProblemB,
     `Twostem.ProblemC,
     `Twostem.ProblemCC,
     `Twostem.ProblemDD,
     `Twostem.SCC,
+    `Twostem.Free,
     `Twostem.Main
   ]
 
