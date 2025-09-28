@@ -248,6 +248,8 @@ structure SCCQuot (α : Type u) (V : Finset α) (R : Finset (Rule α)) where
   (σ_in_V : ∀ b, σ b ∈ V)
 attribute [instance] SCCQuot.βdec
 
+-- 代表化写像 rep ----
+
 /-- 代表化写像 -/
 def rep {β : Type u} (π : α → β) (σ : β → α) : α → α := fun x => σ (π x)
 
@@ -255,14 +257,7 @@ def rep {β : Type u} (π : α → β) (σ : β → α) : α → α := fun x => 
 def Rep {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
   V.image (rep (π := Q.π) (σ := Q.σ))
 
-/-- 自由成分 -/
-def Free {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
-  V \ Rep (Q := Q)
 
-/-- 繊維：`I ∩ Rep = B` を満たす family の部分 -/
-noncomputable def fiber (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
-  (B : Finset α) : Finset (Finset α) :=
-  (family V R).filter (fun I => I ∩ Rep (Q := Q) = B)
 
 /-- 代表化は常に `V` に落ちる。 -/
 lemma rep_mem_V {α : Type u} [DecidableEq α]
@@ -285,6 +280,13 @@ lemma Rep_subset_V
   -- 置換して結論
   exact Eq.ndrec this hrep
 
+-- Fiber ---
+
+/-- 繊維：`I ∩ Rep = B` を満たす family の部分 -/
+noncomputable def fiber (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (B : Finset α) : Finset (Finset α) :=
+  (family V R).filter (fun I => I ∩ Rep (Q := Q) = B)
+
 /-- `fiber` のメンバ判定を素直に展開した形。 -/
 lemma mem_fiber_iff
   (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
@@ -294,6 +296,19 @@ lemma mem_fiber_iff
   constructor
   · intro h; exact Finset.mem_filter.mp h
   · intro h; exact Finset.mem_filter.mpr h
+
+------自由成分Free----
+
+/-- 自由成分 -/
+def Free {V : Finset α} {R : Finset (Rule α)} (Q : SCCQuot α V R) : Finset α :=
+  V \ Rep (Q := Q)
+
+lemma Free_subset_V
+  (V : Finset α) (R : Finset (Rule α))
+  (Q : SCCQuot α V R) :
+  Free (Q := Q) ⊆ V := by
+  unfold Free
+  exact Finset.sdiff_subset
 
 /-- `Free Q = V \ Rep Q` と定義したので、`Rep` と `Free` は交わらない。 -/
 lemma disjoint_Rep_Free
@@ -348,6 +363,8 @@ lemma card_Rep_add_card_Free
   rw [hfree] at h1
   rw [add_comm] at h1
   exact h1
+
+---support-----
 
 /-- R が V の元だけから成る（新頂点なし）。 -/
 def supportedOn (V : Finset α) (R : Finset (α × α × α)) : Prop :=
@@ -790,3 +807,27 @@ structure SafeShrink (V : Finset α) (R R1 : Finset (Rule α)) : Prop where
 /-- Peel or Shrink の存在（非空 R でどちらかが見つかる） -/
 def PeelOrShrink (V : Finset α) (R : Finset (Rule α)) : Prop :=
   (∃ t0, PeelWitness V R t0) ∨ (∃ R1, SafeShrink V R R1)
+
+------
+--UC関連
+
+/-- in-star：子が `r` のルールの集まり（補助定義；UC の書き下し用） -/
+noncomputable def InStar (R : Finset (Rule α)) (r : α) : Finset (Rule α) :=
+  R.filter (fun t => t.2.2 = r)
+
+/-- 子一意：各 `r` の in-star は高々 1 本 -/
+def UniqueChild (R : Finset (Rule α)) : Prop :=
+  ∀ r, (InStar (α := α) R r).card ≤ 1
+
+noncomputable def deltaPeel (V : Finset α) (R : Finset (Rule α)) (t : Rule α) : Int :=
+  NDS2 V (family V (R.erase t)) - NDS2 V (family V R)
+
+noncomputable def Missing
+  (V : Finset α) (R : Finset (Rule α)) (Q : SCCQuot α V R)
+  (B : Finset α) : Int :=
+  (2 : Int) ^ (Free (Q := Q)).card - ((fiber V R Q B).card : Int)
+
+/-- 重み（バイアス）`|V| - 2|B|`（Int 型）。 -/
+def Bias
+  (V : Finset α) (B : Finset α) : Int :=
+  (V.card : Int) - (2 : Int) * (B.card : Int)
