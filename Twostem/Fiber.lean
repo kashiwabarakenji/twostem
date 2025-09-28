@@ -563,7 +563,15 @@ theorem NDS_factorization
       =
       ∑ B ∈ Rep.powerset,
         Biasrep Rep B * ((fiber R Rep B).card : ℤ) + Excess R Rep B := by
-    rfl
+    simp_all
+    refine Finset.sum_congr ?_ ?_
+
+
+
+
+
+
+
 
   -- 合成してゴールを得る
   exact eqt.trans bridge
