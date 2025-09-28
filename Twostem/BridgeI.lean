@@ -2,7 +2,7 @@
 import Twostem.Bridge
 import Twostem.Fiber
 import Twostem.Closure
-import Mathlib/Algebra/BigOperators.Basic
+import Mathlib.Algebra.BigOperators.Finsupp.Basic
 
 namespace Twostem
 

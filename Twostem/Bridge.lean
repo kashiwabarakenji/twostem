@@ -1,7 +1,7 @@
-import Mathlib/Data/Finset/Basic
-import Mathlib/Data/Finset/Lattice
-import Mathlib/Data/List/Lex
-import Mathlib/Algebra/BigOperators.Basic
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Finset.Lattice
+import Mathlib.Data.List.Lex
+import Mathlib.Algebra.BigOperators.Finsupp.Basic
 import Twostem.Rules
 import Twostem.Closure
 import Twostem.NDS

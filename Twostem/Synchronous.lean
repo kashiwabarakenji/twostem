@@ -1,5 +1,6 @@
 -- Twostem/Synchronous.lean
-import Mathlib/Data/Finset/Basic
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Set.Basic
 import Twostem.Rules
 import Twostem.Closure
 
@@ -7,23 +8,42 @@ namespace Twostem
 
 open Finset
 
-variable {α : Type _} [DecidableEq α] [Fintype α]
+variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]
 
 /-- 同期ステップ： 現在集合 X から「前提がすべて X に含まれる」ルールの head を一斉に追加 -/
 def syncStep (R : Finset (Rule α)) (X : Finset α) : Finset α :=
   X ∪ (R.filter (fun t => t.prem ⊆ X)).image (fun t => t.head)
 
-lemma syncStep_mono {R : Finset (Rule α)} :
-  Monotone (syncStep R) := by
-  intro X Y hXY
+omit [Fintype α][DecidableEq α] in
+lemma syncStep_mono [DecidableEq α] {R : Finset (Rule α)} :
+  Monotone (syncStep (α:=α) R) := by
   classical
-  apply union_subset_union_left.mpr
-  -- (filter prem⊆X).image head ⊆ (filter prem⊆Y).image head
-  refine image_subset_iff.mpr ?_
-  intro t ht
-  have htR : t ∈ R := (mem_filter.mp ht).1
-  have hsub : t.prem ⊆ Y := subset_trans (mem_filter.mp ht).2 hXY
-  exact mem_image.mpr ⟨t, mem_filter.mpr ⟨htR, hsub⟩, rfl⟩
+  -- 単調性：X ⊆ Y → syncStep R X ⊆ syncStep R Y
+  intro X Y hXY a ha
+  -- ha : a ∈ X ∪ image(…X…)
+  -- ゴール : a ∈ Y ∪ image(…Y…)
+  rcases Finset.mem_union.mp ha with hX | hImg
+  · -- a ∈ X ⇒ a ∈ Y（X ⊆ Y）⇒ 左和に入る
+    exact Finset.mem_union.mpr (Or.inl (hXY hX))
+  · -- a が image 側から来た場合
+    rcases Finset.mem_image.mp hImg with ⟨t, ht, rfl⟩
+    -- ht : t ∈ R.filter (fun t => t.prem ⊆ X)
+    -- まず filter の条件を分解
+    have htR : t ∈ R := by
+      have := (Finset.mem_filter.mp ht).1
+      exact this
+    have hsubX : t.prem ⊆ X := by
+      have := (Finset.mem_filter.mp ht).2
+      exact this
+    -- X ⊆ Y より prem ⊆ Y
+    have hsubY : t.prem ⊆ Y := fun u hu => hXY (hsubX hu)
+    -- したがって t は R.filter (…⊆ Y) にも属する
+    have htY : t ∈ R.filter (fun t => t.prem ⊆ Y) := by
+      exact (Finset.mem_filter.mpr ⟨htR, hsubY⟩)
+    -- よって t.head は image 側で Y にも入る
+    exact Finset.mem_union.mpr
+      (Or.inr (Finset.mem_image.mpr ⟨t, htY, rfl⟩))
+
 
 /-- 同期列： step^n を反復する -/
 def syncIter (R : Finset (Rule α)) : ℕ → Finset α → Finset α
@@ -52,18 +72,17 @@ lemma subset_syncIter {R : Finset (Rule α)} :
     exact (subset_union_left : syncIter R n X ⊆ syncStep R (syncIter R n X)) this
 
 /-- 閉包は R-閉：Closure.lean 側の基本補題を利用（なければ同名補題を用意） -/
--- isClosed_closure : IsClosed R (closure R X)
+-- isClosed_closure : IsClosed R (syncCl R X)
 -- IsClosed.def: ∀ t∈R, prem⊆I → head∈I
 lemma head_mem_closure_of_prem_subset {R : Finset (Rule α)} {X : Finset α}
-  {t : Rule α} (ht : t ∈ R) (hPrem : t.prem ⊆ closure R X) :
-  t.head ∈ closure R X := by
-  have hClosed := isClosed_closure (R:=R) (X:=X)
-  -- hClosed: ∀ t∈R, t.prem ⊆ closure R X → t.head ∈ closure R X
-  simpa using hClosed ht hPrem
+  {t : Rule α} (ht : t ∈ R) (hPrem : t.prem ⊆ syncCl R X) :
+  t.head ∈ syncCl R X := by
+  have hClosed : IsClosed R (syncCl R X) := syncCl_closed (R := R) (I := X)
+  exact hClosed ht hPrem
 
 /-- 同期列の各段は閉包に含まれる -/
 lemma syncIter_subset_closure {R : Finset (Rule α)} {X : Finset α} :
-  ∀ n, syncIter R n X ⊆ closure R X
+  ∀ n, syncIter R n X ⊆ syncCl R X
 | 0     => subset_closure (R:=R) (I:=X)
 | (n+1) =>
   by
@@ -75,7 +94,7 @@ lemma syncIter_subset_closure {R : Finset (Rule α)} {X : Finset α} :
     · rcases mem_image.mp hHead with ⟨t, htFilt, rfl⟩
       have htR : t ∈ R := (mem_filter.mp htFilt).1
       have hPremX : t.prem ⊆ syncIter R n X := (mem_filter.mp htFilt).2
-      have hPremCl : t.prem ⊆ closure R X :=
+      have hPremCl : t.prem ⊆ syncCl R X :=
         subset_trans hPremX (syncIter_subset_closure (R:=R) (X:=X) n)
       exact head_mem_closure_of_prem_subset (R:=R) (X:=X) (t:=t) htR hPremCl
 

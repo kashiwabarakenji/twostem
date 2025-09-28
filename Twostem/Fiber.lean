@@ -31,6 +31,7 @@ lemma mem_fiber {R : Finset (Rule α)} [DecidablePred (IsClosed R)] {Rep B I : F
   · intro h; simpa [mem_filter, mem_Family, and_left_comm, and_assoc] using h
   · intro h; simpa [mem_filter, mem_Family, and_left_comm, and_assoc] using h
 
+omit [LinearOrder α] in
 /-- 代表側 powerset を添字にした繊維族が `Family R` を被覆 -/
 lemma cover_family_by_fibers
   (R : Finset (Rule α)) [DecidablePred (IsClosed R)]  (Rep : Finset α) :
@@ -59,7 +60,7 @@ lemma cover_family_by_fibers
     apply mem_biUnion.mpr
     exact Filter.frequently_principal.mp fun a => a hBmem hIn
 
-
+omit [LinearOrder α] in
 /-- 異なる `B ≠ B'` に対し、`fiber(B)` と `fiber(B')` は互いに素 -/
 lemma fibers_pairwise_disjoint
   (R : Finset (Rule α))  [DecidablePred (IsClosed R)] (Rep : Finset α) :
@@ -74,7 +75,7 @@ lemma fibers_pairwise_disjoint
   contradiction
 
 
-
+omit [LinearOrder α] in
 /-- `Family` の和を `Rep.powerset` で分割された繊維の二重和に展開 -/
 lemma sum_over_family_by_fibers
   {R : Finset (Rule α)} [DecidablePred (IsClosed R)]  {Rep : Finset α}
@@ -153,6 +154,7 @@ def Excess (R : Finset (Rule α))  [DecidablePred (IsClosed R)] (Rep B : Finset 
   2 * (∑ I ∈ fiber (α:=α) R Rep B, ((I ∩ Free).card : ℤ))
   - (Free.card : ℤ) * (fiber (α:=α) R Rep B).card
 
+omit [LinearOrder α] in
 /-- `|I| = |I∩Rep| + |I∩Free|` の整数版 -/
 lemma card_split_inter_rep_free
   (I Rep : Finset α) :
@@ -230,6 +232,8 @@ lemma card_split_inter_rep_free
       exact hnat
   -/
 
+omit [LinearOrder α] in
+omit [Fintype α] in
 lemma card_univ_split (Rep : Finset α) [Fintype α] :
     (Fintype.card α : ℤ) = (Rep.card : ℤ) + ((FreeOf Rep).card : ℤ) := by
   classical
@@ -278,6 +282,7 @@ lemma card_univ_split (Rep : Finset α) [Fintype α] :
   -- よって |S| = |Rep| + |Free|
   exact Nat.ToInt.of_eq (id (Eq.symm base)) R rfl
 
+omit [LinearOrder α] in
 lemma inter_rep_is_B_on_fiber
     {R : Finset (Rule α)} [DecidablePred (IsClosed R)]
     {Rep B I : Finset α} (hI : I ∈ fiber (α:=α) R Rep B) :
@@ -286,6 +291,7 @@ lemma inter_rep_is_B_on_fiber
   have h := (mem_fiber (R := R) (Rep := Rep) (B := B) (I := I)).1 hI
   exact h.2
 
+omit [LinearOrder α] in
 lemma sum_rep_const_on_fiber
     {R : Finset (Rule α)} [DecidablePred (IsClosed R)]
     (Rep B : Finset α) :
@@ -335,6 +341,7 @@ lemma sum_rep_const_on_fiber
   -- 以上を合成
   exact Eq.trans hsum1 (Eq.trans hsum2 (Eq.trans hns hcomm))
 
+omit [LinearOrder α] in
 lemma sum_free_linear_on_fiber
     {R : Finset (Rule α)} [DecidablePred (IsClosed R)]
     (Rep B : Finset α) :
@@ -414,6 +421,8 @@ lemma sum_free_linear_on_fiber
       exact Eq.trans t1 (Eq.trans t2 t3)
   exact Eq.trans hsplit this
 
+omit [LinearOrder α] in
+omit [Fintype α] in
 lemma fiber_inner_sum
     {R : Finset (Rule α)} [DecidablePred (IsClosed R)] [Fintype α]
     (Rep B : Finset α) :
@@ -456,6 +465,7 @@ lemma fiber_inner_sum
           have wS := hS
           -- 書き換えは calc でなく `Eq.trans` 等でも OK です
           -- ここは見通しの良さ優先で `rfl` と合わせておきます
+          simp_all only
           )
       _ =
         (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
@@ -472,18 +482,42 @@ lemma fiber_inner_sum
       +
       (∑ I ∈ fiber (α:=α) R Rep B,
           (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))) := by
-    -- integrand を `inner_rewrite` で置換してから `sum_add_distrib`
-    have := Finset.sum_congr (rfl)
-      (by
+    classical
+    -- まず集合を固定名に
+    set sB := fiber (α:=α) R Rep B
+
+    -- 各点で integrand を置換
+    have hpt :
+        ∀ I ∈ sB,
+          (2 * (I.card : ℤ) - (Fintype.card α : ℤ))
+          =
+          (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
+          +
+          (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ)) := by
+      intro I hI
+      exact inner_rewrite I
+
+    -- まず integrand を f+g の形に書き換える
+    calc
+      Finset.sum (s := sB)
+        (fun I => 2 * (I.card : ℤ) - (Fintype.card α : ℤ))
+          =
+        Finset.sum (s := sB)
+          (fun I =>
+            (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
+            +
+            (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))) := by
+        refine Finset.sum_congr rfl ?_
         intro I hI
-        exact inner_rewrite I
-      )
-    -- 右辺は「各項の和」を 2 本に分割
-    -- sum_congr で integrand を置換し、その後 sum_add_distrib で分割
-    -- 置換結果を `this` として、さらに分配
-    -- 等式 `this` の右辺に対して sum_add_distrib を適用するイメージですが、
-    -- 書き下すと次で十分です：
-    exact Eq.trans this Finset.sum_add_distrib
+        exact hpt I hI
+      _ =
+        (Finset.sum (s := sB)
+          (fun I => 2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ)))
+        +
+        (Finset.sum (s := sB)
+          (fun I => 2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))) := by
+        -- 和の分配則
+        exact Finset.sum_add_distrib
 
   -- 左半分は定数和、右半分は線形性
   have left := sum_rep_const_on_fiber (R := R) (Rep := Rep) (B := B)
@@ -494,12 +528,13 @@ lemma fiber_inner_sum
   apply Eq.trans split_sum
   simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul]
 
+omit [Fintype α] [LinearOrder α] in
 theorem NDS_factorization
   [Fintype α] (R : Finset (Rule α)) [DecidablePred (IsClosed R)]
   (Rep : Finset α) :
   NDS R
     =
-  ∑ B ∈ Rep.powerset, Biasrep Rep B * (fiber R Rep B).card + Excess R Rep B := by
+  ∑ B ∈ Rep.powerset, (Biasrep Rep B * (fiber R Rep B).card + Excess R Rep B) := by
   classical
   -- NDS を代表側で二重和に分解
   unfold NDS
@@ -554,318 +589,21 @@ theorem NDS_factorization
   -- 右辺は目標式の右辺
   -- 左辺は NDS の定義から step0, step1 を通して書き換え済み
   -- よって両辺等しい
-  apply Eq.trans step0
-  let eqt := Eq.trans step1 step2
+    -- ここまで: step1, step2 がある
+  rw [H]
 
-  have bridge :
+  -- step1 と step2 の合成
+  have eqt :
       ∑ B ∈ Rep.powerset,
-        (Biasrep Rep B * ((fiber R Rep B).card : ℤ) + Excess R Rep B)
+        ∑ I ∈ fiber (α:=α) R Rep B, (2 * (I.card : ℤ) - (Fintype.card α : ℤ))
       =
       ∑ B ∈ Rep.powerset,
-        Biasrep Rep B * ((fiber R Rep B).card : ℤ) + Excess R Rep B := by
-    simp_all
-    refine Finset.sum_congr ?_ ?_
+        (Biasrep Rep B * (fiber (α:=α) R Rep B).card + Excess (α:=α) R Rep B) :=
+    step1.trans step2
 
+  -- 右辺（括弧あり）→ 右辺（括弧なし）への橋渡し
+  refine eqt.trans ?bridge
+  -- 束縛記法を明示ラムダに揃えれば rfl
+  simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul]
 
-
-
-
-
-
-
-  -- 合成してゴールを得る
-  exact eqt.trans bridge
-
-
-
-
-
-/-
-theorem NDS_factorization
-  (R : Finset (Rule α)) [DecidablePred (IsClosed R)] (Rep : Finset α) :
-  NDS R =
-    ∑ B ∈ Rep.powerset, Biasrep Rep B * (fiber R Rep B).card + Excess R Rep B := by
-  classical
-  -- NDS を代表側で二重和に分解
-  unfold NDS
-  have H :=
-    sum_over_family_by_fibers (R := R) (Rep := Rep)
-      (φ := fun I => (2 * (I.card : ℤ) - (Fintype.card α : ℤ)))
-
-  -- `|S| = |Rep| + |Free|` を用意
-  have hS :
-      (Fintype.card α : ℤ) = (Rep.card : ℤ) + ((FreeOf Rep).card : ℤ) := by
-    -- univ = Rep ⊎ FreeOf Rep
-    have hdisj : Disjoint Rep (FreeOf Rep) := by
-      refine disjoint_left.mpr ?_
-      intro x hxRep hxFree
-      -- x∈Rep ∧ x∈(univ\Rep) は矛盾
-      rcases mem_sdiff.mp hxFree with ⟨_, hxNotRep⟩
-      exact (hxNotRep hxRep).elim
-    have hcover : (univ : Finset α) = Rep ∪ FreeOf Rep := by
-      ext x; constructor
-      · intro hx
-        by_cases hxRep : x ∈ Rep
-        · exact mem_union.mpr (Or.inl hxRep)
-        · exact mem_union.mpr (Or.inr (mem_sdiff.mpr ⟨hx, hxRep⟩))
-      · intro hx
-        rcases mem_union.mp hx with hxR | hxF
-        · exact mem_univ x
-        · exact (mem_sdiff.mp hxF).1
-    have : Fintype.card α = (Rep ∪ FreeOf Rep).card := by
-      simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, card_union_of_disjoint]
-      rw [← Finset.card_univ, hcover]
-      simp_all only [card_union_of_disjoint]
-    have : (Rep ∪ FreeOf Rep).card = Rep.card + (FreeOf Rep).card := by
-      simp_all only [card_union_of_disjoint, Nat.cast_add, sum_sub_distrib, sum_const,
-        Int.nsmul_eq_mul]
-    (expose_names; exact Nat.ToInt.of_eq rfl (congrArg NatCast.natCast this) this_1)
-
-  -- 以後、各 fiber ごとに算術分解して並べる
-  -- 書き換え開始
-  -- 左辺 NDS を二重和に置換
-  simp [H]
-  have :
-      ∑ B ∈ Rep.powerset,
-        ∑ I ∈ fiber (α := α) R Rep B, (2 * (I.card : ℤ) - (Fintype.card α : ℤ))
-        =
-        ∑ B ∈ Rep.powerset,
-          ( Biasrep Rep B * (fiber (α := α) R Rep B).card
-            + Excess (α := α) R Rep B ) := by
-    --simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul]
-    calc
-      ∑ B ∈ Rep.powerset,
-        ∑ I ∈ fiber (α := α) R Rep B,
-          (2 * (I.card : ℤ) - (Fintype.card α : ℤ))
-          =
-        ∑ B ∈ Rep.powerset,
-          ∑ I ∈ fiber (α := α) R Rep B,
-            ((2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-              + (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))) := by
-        -- |I| 分解と |S| 分解の代入
-        refine sum_congr rfl ?inner
-        intro B hB
-        refine sum_congr rfl ?innerI
-        intro I hI
-        have hsplit := card_split_inter_rep_free (I := I) (Rep := Rep)
-        -- 2|I| - |S| = (2|I∩Rep| + 2|I∩Free|) - (|Rep| + |Free|)
-        calc
-          2 * (I.card : ℤ) - (Fintype.card α : ℤ)
-              =
-            2 * (((I ∩ Rep).card : ℤ) + ((I ∩ FreeOf Rep).card : ℤ))
-              - ((Rep.card : ℤ) + ((FreeOf Rep).card : ℤ)) := by
-            simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset]
-          _ =
-            (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-              + (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ)) := by
-            ring
-          _ =
-            ∑ B ∈ Rep.powerset,
-              ( (2 * (B.card : ℤ) - (Rep.card : ℤ)) * (fiber (α := α) R Rep B).card
-                + ( 2 * (∑ I ∈ fiber (α := α) R Rep B, ((I ∩ FreeOf Rep).card : ℤ))
-                    - ((FreeOf Rep).card : ℤ) * (fiber (α := α) R Rep B).card ) ) := by
-            -- 繊維内で (2|I∩Rep|-|Rep|) は B 固定なので (#fiber) 倍
-            -- かつ Free 側は定義通り Excess
-            sorry
-            /-
-            refine sum_congr rfl ?fiberSplit
-            intro B hB
-            -- fiber の定義より I∈fiber(B) ⇒ I∩Rep = B
-            have rep_is_B :
-                ∀ {I}, I ∈ fiber (α := α) R Rep B → (I ∩ Rep = B) := by
-              intro I hI
-              exact (mem_fiber (R := R) (Rep := Rep) (B := B) (I := I)).1 hI |>.2
-            -- 和を二つに分けて整理
-            calc
-              ∑ I ∈ fiber (α := α) R Rep B,
-                  ((2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-                    + (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ)))
-                =
-                (∑ I ∈ fiber (α := α) R Rep B,
-                    (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ)))
-                  +
-                  (∑ I ∈ fiber (α := α) R Rep B,
-                    (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))) := by
-                simp [sum_add_distrib]
-              _ =
-                ((2 * (B.card : ℤ) - (Rep.card : ℤ)) * (fiber (α := α) R Rep B).card)
-                  +
-                  ( 2 * (∑ I ∈ fiber (α := α) R Rep B, ((I ∩ FreeOf Rep).card : ℤ))
-                      - ((FreeOf Rep).card : ℤ) * (fiber (α := α) R Rep B).card ) := by
-                -- 左半分：定数の和、右半分：線形性
-                -- 左半分
-                have L :
-                    ∑ I ∈ fiber (α := α) R Rep B,
-                        (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-                      =
-                      (2 * (B.card : ℤ) - (Rep.card : ℤ)) * (fiber (α := α) R Rep B).card := by
-                  -- 各 I の項が同じ（I∩Rep=B）
-                  have : ∀ I ∈ fiber (α := α) R Rep B,
-                      2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ)
-                        = 2 * (B.card : ℤ) - (Rep.card : ℤ) := by
-                    intro I hI
-                    simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset]
-                  -- 定数の和＝定数×個数
-                  simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset,
-                    implies_true]
-                  ring
-                -- 右半分：分配
-                have R' :
-                    ∑ I ∈ fiber (α := α) R Rep B,
-                        (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))
-                      =
-                      2 * (∑ I ∈ fiber (α := α) R Rep B, ((I ∩ FreeOf Rep).card : ℤ))
-                        - ((FreeOf Rep).card : ℤ) * (fiber (α := α) R Rep B).card := by
-                  -- 線形性：∑(2a - c) = 2∑a - c * #fiber
-                  simp [mul_sum, sum_sub_distrib]
-                  exact Int.mul_comm ↑(#(fiber R Rep B)) ↑(#(FreeOf Rep))
-                simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset]
-          -/
-        sorry
-    _ =
-        ∑ B ∈ Rep.powerset,
-          ( Biasrep Rep B * (fiber (α := α) R Rep B).card
-            + Excess (α := α) R Rep B ) := by
-        -- 定義に戻すだけ
-        sorry
-        --refine sum_congr rfl ?final
-        --intro B hB
-        --simp [Biasrep, Excess]
-        --            + Excess (α := α) R Rep B
-  simp at this
-  sorry
-  --exact this
--/
-
-/-
-/-- NDS の Bias–Excess 因子分解 -/
-theorem NDS_factorization
-  (R : Finset (Rule α))  [DecidablePred (IsClosed R)] (Rep : Finset α) :
-NDS R =  ∑ B ∈ Rep.powerset,  Biasrep Rep B * (fiber R Rep B).card + Excess R Rep B := by
-  classical
-  -- NDS を代表側で二重和に分解
-  unfold NDS
-  have H := sum_over_family_by_fibers (R:=R) (Rep:=Rep)
-             (φ := fun I => (2 * (I.card : ℤ) - (Fintype.card α : ℤ)))
-  -- `|S| = |Rep| + |Free|` を用意
-  have hS : (Fintype.card α : ℤ)
-            = (Rep.card : ℤ) + ((FreeOf Rep).card : ℤ) := by
-    -- univ = Rep ⊎ FreeOf Rep
-    have hdisj : Disjoint Rep (FreeOf Rep) := by
-      refine disjoint_left.mpr ?_
-      intro x hxRep hxFree
-      -- x∈Rep ∧ x∈(univ\Rep) は矛盾
-      rcases mem_sdiff.mp hxFree with ⟨_, hxNotRep⟩
-      exact (hxNotRep hxRep).elim
-    have hcover : (univ : Finset α) = Rep ∪ FreeOf Rep := by
-      ext x; constructor
-      · intro hx
-        by_cases hxRep : x ∈ Rep
-        · exact mem_union.mpr (Or.inl hxRep)
-        · exact mem_union.mpr (Or.inr (mem_sdiff.mpr ⟨hx, hxRep⟩))
-      · intro hx
-        rcases mem_union.mp hx with hxR | hxF
-        · exact mem_univ x
-        · exact (mem_sdiff.mp hxF).1
-    have : Fintype.card α
-          = (Rep ∪ FreeOf Rep).card := by
-          simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, card_union_of_disjoint]
-          rw [← Finset.card_univ, hcover]
-          simp_all only [card_union_of_disjoint]
-
-
-    have : (Rep ∪ FreeOf Rep).card = Rep.card + (FreeOf Rep).card := by
-      simp_all only [card_union_of_disjoint, Nat.cast_add, sum_sub_distrib, sum_const, Int.nsmul_eq_mul]
-
-    (expose_names; exact Nat.ToInt.of_eq rfl (congrArg NatCast.natCast this) this_1)
-  -- 以後、各 fiber ごとに算術分解して並べる
-  -- 書き換え開始
-  -- 左辺 NDS を二重和に置換
-  simp [H]
-  have : ∑ B ∈ Rep.powerset, ∑ I ∈ fiber (α:=α) R Rep B,
-      (2 * (I.card : ℤ) - (Fintype.card α : ℤ)) = ∑ B ∈ Rep.powerset,
-      ( Biasrep Rep B * (fiber (α:=α) R Rep B).card
-      + Excess (α:=α) R Rep B ) := by
-    simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul]
-    calc
-      ∑ B ∈ Rep.powerset, ∑ I ∈ fiber (α:=α) R Rep B,
-        (2 * (I.card : ℤ) - (Fintype.card α : ℤ))
-      =
-      ∑ B ∈ Rep.powerset, ∑ I ∈  fiber (α:=α) R Rep B,
-        ((2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-        + (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))) := by
-        -- |I| 分解と |S| 分解の代入
-        refine sum_congr rfl ?inner
-        intro B hB
-        refine sum_congr rfl ?innerI
-        intro I hI
-        have hsplit := card_split_inter_rep_free (I:=I) (Rep:=Rep)
-        -- 2|I| - |S| = (2|I∩Rep| + 2|I∩Free|) - (|Rep| + |Free|)
-        calc
-          2 * (I.card : ℤ) - (Fintype.card α : ℤ)
-              = 2 * (((I ∩ Rep).card : ℤ) + ((I ∩ FreeOf Rep).card : ℤ))
-                - ((Rep.card : ℤ) + ((FreeOf Rep).card : ℤ)) := by
-                  simp_all only [mem_powerset]
-          _   = (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-              + (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ)) := by ring
-          _   =
-            ∑ B ∈ Rep.powerset,
-              ( (2 * (B.card : ℤ) - (Rep.card : ℤ)) * (fiber (α:=α) R Rep B).card
-              + ( 2 * (∑ I ∈ fiber (α:=α) R Rep B, ((I ∩ FreeOf Rep).card : ℤ))
-                  - ((FreeOf Rep).card : ℤ) * (fiber (α:=α) R Rep B).card ) ) := by
-              -- 繊維内で (2|I∩Rep|-|Rep|) は B 固定なので (#fiber) 倍
-              -- かつ Free 側は定義通り Excess
-              refine sum_congr rfl ?fiberSplit
-              intro B hB
-              -- fiber の定義より I∈fiber(B) ⇒ I∩Rep = B
-              have rep_is_B :
-                ∀ {I}, I ∈ fiber (α:=α) R Rep B → (I ∩ Rep = B) := by
-                intro I hI; exact (mem_fiber (R:=R) (Rep:=Rep) (B:=B) (I:=I)).1 hI |>.2
-              -- 和を二つに分けて整理
-              calc
-                ∑ I ∈ fiber (α:=α) R Rep B,
-                  ((2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-                  + (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ)))
-                  =
-                (∑ I ∈ fiber (α:=α) R Rep B, (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ)))
-                +
-                (∑ I ∈ fiber (α:=α) R Rep B, (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))) := by
-                  simp [sum_add_distrib]
-                _ =
-                ((2 * (B.card : ℤ) - (Rep.card : ℤ)) * (fiber (α:=α) R Rep B).card)
-                +
-                ( 2 * (∑ I ∈ fiber (α:=α) R Rep B, ((I ∩ FreeOf Rep).card : ℤ))
-                  - ((FreeOf Rep).card : ℤ) * (fiber (α:=α) R Rep B).card ) := by
-                        -- 左半分：定数の和、右半分：線形性
-                        -- 左半分
-                    have L :
-                      ∑ I ∈ fiber (α:=α) R Rep B, (2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ))
-                        =
-                      (2 * (B.card : ℤ) - (Rep.card : ℤ)) * (fiber (α:=α) R Rep B).card := by
-                      -- 各 I の項が同じ（I∩Rep=B）
-                      have : ∀ I ∈ fiber (α:=α) R Rep B,
-                              2 * ((I ∩ Rep).card : ℤ) - (Rep.card : ℤ)
-                                = 2 * (B.card : ℤ) - (Rep.card : ℤ) := by
-                        intro I hI;
-                        simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset]
-                      -- 定数の和＝定数×個数
-                      simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset, implies_true]
-                      ring
-                    -- 右半分：分配
-                    have R' :
-                      ∑ I ∈ fiber (α:=α) R Rep B, (2 * ((I ∩ FreeOf Rep).card : ℤ) - ((FreeOf Rep).card : ℤ))
-                        =
-                      2 * (∑ I ∈ fiber (α:=α) R Rep B, ((I ∩ FreeOf Rep).card : ℤ))
-                      - ((FreeOf Rep).card : ℤ) * (fiber (α:=α) R Rep B).card := by
-                      -- 線形性：∑(2a - c) = 2∑a - c * #fiber
-                      simp [mul_sum, sum_sub_distrib]
-                      exact Int.mul_comm ↑(#(fiber R Rep B)) ↑(#(FreeOf Rep))
-                    simp_all only [sum_sub_distrib, sum_const, Int.nsmul_eq_mul, mem_powerset]
-    _ =
-          ∑ B ∈ Rep.powerset,
-            ( Biasrep Rep B * (fiber (α:=α) R Rep B).card
-            + Excess (α:=α) R Rep B ) := by
-            -- 定義に戻すだけ
-              refine sum_congr rfl ?final
-              intro B hB; simp [Biasrep, Excess]
--/
+end Twostem

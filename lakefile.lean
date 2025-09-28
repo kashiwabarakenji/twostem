@@ -3,6 +3,10 @@ open Lake DSL
 
 package «twostem» where
   -- add package configuration options here
+  moreLinkArgs := #[
+    "-L./.lake/packages/LeanCopilot/.lake/build/lib",
+    "-lctranslate2"
+  ]
 
 lean_lib «Twostem» where
   -- add library configuration options here
@@ -11,6 +15,7 @@ lean_lib «Twostem» where
     `Twostem.Closure,
     `Twostem.Fiber,
     `Twostem.NDS,
+    `Twostem.Synchronous,
     `Twostem.Bridge,
     `Twostem
 --    `Twostem.Twostem
