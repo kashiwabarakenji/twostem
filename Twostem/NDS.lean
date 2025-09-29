@@ -2,13 +2,17 @@ import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Basic
 import Mathlib.Algebra.BigOperators.Finsupp.Basic
-import Twostem.Rules
-import Twostem.Closure
+import Twostem.Closure.Abstract
+import Twostem.Closure.Core
+import Twostem.Closure.Sync
+--import Twostem.Rules
+--import Twostem.Closure
 import LeanCopilot
 
 namespace Twostem
 
 open scoped BigOperators
+open Closure
 open Finset
 
 variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]

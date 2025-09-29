@@ -1,8 +1,11 @@
 -- Twostem/Synchronous.lean
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Basic
-import Twostem.Rules
-import Twostem.Closure
+--import Twostem.Rules
+--import Twostem.Closure
+import Twostem.Closure.Abstract
+import Twostem.Closure.Core
+import Twostem.Closure.Sync
 
 --論文にSynchronousという言葉はある。
 --1タイミングごとに根を追加していくことか。
@@ -11,6 +14,7 @@ import Twostem.Closure
 namespace Twostem
 
 open Finset
+open Closure
 
 variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]
 

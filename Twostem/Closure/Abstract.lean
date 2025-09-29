@@ -214,6 +214,81 @@ lemma fixed_point_at_card (O : Operator α) (I : Finset α) :
   have := iterate_eq_propagate (O.f) I (k := k) (m := Fintype.card α) hk heq
   simpa [lfpInCard, iterate, Function.iterate_succ_apply'] using this.symm
 
+/-- seed is contained in every iterate (by simple induction). -/
+lemma iterate_extensive (O : Operator α) : ∀ n (s : Finset α), s ⊆ O.iterate n s := by
+  intro n; induction' n with n ih
+  · intro s x hx; exact hx
+  · intro s x hx
+    have hx' : x ∈ (O.f^[n]) s := ih s hx
+    exact (O.step_subset n s) hx'
+
+/-- closure is extensive: `s ⊆ cl s`. -/
+lemma closure_extensive (O : Operator α) (s : Finset α) : s ⊆ O.lfpInCard s := by
+  intro x hx
+  change x ∈ (O.f^[Fintype.card α]) s
+  exact (O.iterate_extensive (Fintype.card α) s) hx
+
+/-- closure is monotone w.r.t. inclusion of seeds. -/
+lemma closure_monotone (O : Operator α) {s t : Finset α} (h : s ⊆ t) :
+  O.lfpInCard s ⊆ O.lfpInCard t := by
+  intro x hx
+  change x ∈ (O.f^[Fintype.card α]) t
+  have monoN := O.iterate_mono (Fintype.card α)
+  exact monoN h hx
+
+/-- if `S` is a fixed point, all iterates stay at `S`. -/
+lemma iterate_fixed_of_fixed (O : Operator α) {S : Finset α}
+  (hfix : O.f S = S) : ∀ n, O.iterate n S = S := by
+  intro n; induction' n with n ih
+  · rfl
+  · calc
+      (O.f^[n+1]) S = O.f ((O.f^[n]) S) := by rw [Function.iterate_succ_apply']
+      _             = O.f S             := by exact congrArg O.f ih
+      _             = S                 := hfix
+
+/-- idempotence of the closure: `cl (cl s) = cl s`. -/
+lemma closure_idem (O : Operator α) (s : Finset α) :
+  O.lfpInCard (O.lfpInCard s) = O.lfpInCard s := by
+  -- first, `cl s` is a fixed point
+  have hfix : O.f (O.lfpInCard s) = O.lfpInCard s := fixed_point_at_card (O := O) (I := s)
+  -- iterating from a fixed point stays there
+  have hstay := iterate_fixed_of_fixed (O := O) (S := O.lfpInCard s) hfix (Fintype.card α)
+  -- expand lfpInCard on the LHS
+  change (O.f^[Fintype.card α]) (O.lfpInCard s) = O.lfpInCard s
+  exact hstay
+
+/-- cardinality bounds for closure. -/
+lemma closure_card_bounds (O : Operator α) (s : Finset α) :
+  s.card ≤ (O.lfpInCard s).card ∧ (O.lfpInCard s).card ≤ Fintype.card α := by
+  have hsubset : s ⊆ O.lfpInCard s := O.closure_extensive s
+  have hle_left : s.card ≤ (O.lfpInCard s).card := by
+    exact Finset.card_le_card hsubset
+    --Finset.card_le_of_subset hsubset
+  have hle_right : (O.lfpInCard s).card ≤ Fintype.card α := Finset.card_le_univ _
+  exact And.intro hle_left hle_right
+
+/-- minimality: any fixed point `J` with `s ⊆ J` contains the closure of `s`. -/
+lemma closure_minimal (O : Operator α) {s J : Finset α}
+  (hsJ : s ⊆ J) (hJfix : O.f J = J) :
+  O.lfpInCard s ⊆ J := by
+  -- show (f^[k]) s ⊆ J for all k by induction
+  have stepInc : ∀ k, (O.f^[k]) s ⊆ J := by
+    intro k; induction' k with k ih
+    · exact hsJ
+    · intro x hx
+      -- (f^[k+1]) s = f ((f^[k]) s) ⊆ f J = J
+      have e := Function.iterate_succ_apply' O.f k s
+      have hx' : x ∈ O.f ((O.f^[k]) s) := Eq.mp (congrArg (fun t => x ∈ t) e) hx
+      have hmono : O.f ((O.f^[k]) s) ⊆ O.f J := O.mono ih
+      have hx'' : x ∈ O.f J := hmono hx'
+      exact Eq.mp (congrArg (fun t => x ∈ t) hJfix) hx''
+  intro x hx
+  -- rewrite lfpInCard and use k = |α|
+  have : O.lfpInCard s = (O.f^[Fintype.card α]) s := rfl
+  have hx' : x ∈ (O.f^[Fintype.card α]) s := by
+    -- cast along rfl (explicit)
+    exact hx
+  exact stepInc (Fintype.card α) hx'
 /-
 omit [DecidableEq α] in
 -- 補題: step が C で安定しないなら、k と k+1 の反復は異なる

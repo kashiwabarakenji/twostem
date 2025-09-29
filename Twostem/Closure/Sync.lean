@@ -414,9 +414,9 @@ classical
   have gen := mem_syncClIter_of_mem (R := R)
   exact gen (Fintype.card α) I a ha
 
---rulesにあるdefinitionalClosure_specと同じ？
+--rulesにあるdefinitionalClosure_specと同じ？外から参照あり。
 omit [DecidableEq α] [Fintype α] in
-private lemma syncCl_subset_of_closed
+lemma syncCl_subset_of_closed
   {R : Finset (Rule α)} {I J : Finset α} [Fintype α] [DecidableEq α]
   (hIJ : I ⊆ J) (hJ : IsClosed R J) :
   syncCl R I ⊆ J := by

@@ -2,7 +2,7 @@
 import Mathlib.Data.Finset.Basic
 import Twostem.Rules
 import Twostem.Closure
-import Twostem.Bridge
+--import Twostem.Bridge
 
 namespace Twostem
 

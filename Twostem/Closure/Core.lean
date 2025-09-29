@@ -14,6 +14,8 @@ variable {α : Type*} [DecidableEq α] [Fintype α]
 
 /-- Rules and basic predicates (assume your existing `Rule` etc. are imported). -/
 -- placeholder: `Rule α` should already be defined in your project
+def UC (R : Finset (Rule α)) : Prop :=
+  ∀ a : α, (R.filter (fun t => t.head = a)).card ≤ 1
 
 -- Closed family w.r.t. rules R
 @[simp] def IsClosed (R : Finset (Rule α)) (I : Finset α) : Prop :=

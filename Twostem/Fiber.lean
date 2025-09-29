@@ -3,14 +3,15 @@ import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Basic
 import Mathlib.Algebra.BigOperators.Finsupp.Basic
 --import Mathlib.Data.Finset.Lattice  -- for powerset / biUnion tools
-import Twostem.Rules
-import Twostem.Closure
+--import Twostem.Rules
+--import Twostem.Closure
 import Twostem.NDS
 
 namespace Twostem
 
 open scoped BigOperators
 open Finset
+open Closure
 
 variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]
 
