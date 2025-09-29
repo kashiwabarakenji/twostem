@@ -4,6 +4,10 @@ import Mathlib.Data.Set.Basic
 import Twostem.Rules
 import Twostem.Closure
 
+--論文にSynchronousという言葉はある。
+--1タイミングごとに根を追加していくことか。
+--Closure.leanのほうにも似たようなものがある。
+
 namespace Twostem
 
 open Finset
@@ -14,7 +18,7 @@ variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]
 def syncStep (R : Finset (Rule α)) (X : Finset α) : Finset α :=
   X ∪ (R.filter (fun t => t.prem ⊆ X)).image (fun t => t.head)
 
-omit [Fintype α][DecidableEq α] in
+omit [Fintype α][DecidableEq α][LinearOrder α] in
 lemma syncStep_mono [DecidableEq α] {R : Finset (Rule α)} :
   Monotone (syncStep (α:=α) R) := by
   classical
@@ -50,17 +54,20 @@ def syncIter (R : Finset (Rule α)) : ℕ → Finset α → Finset α
 | 0,     X => X
 | (n+1), X => syncStep R (syncIter R n X)
 
+omit [Fintype α][LinearOrder α] in
 lemma syncIter_mono {R : Finset (Rule α)} :
   ∀ n, Monotone (syncIter R n)
 | 0     => fun _ _ h => h
 | (n+1) => fun _ _ h => (syncStep_mono (R:=R)) ((syncIter_mono (R:=R) n) h)
 
+omit [Fintype α] [LinearOrder α] in
 lemma le_syncIter_succ {R : Finset (Rule α)} {n : ℕ} {X : Finset α} :
   syncIter R n X ⊆ syncIter R (n+1) X := by
   classical
   change syncIter R n X ⊆ syncStep R (syncIter R n X)
   exact subset_union_left
 
+omit [Fintype α] [LinearOrder α] in
 /-- 0 段目からの包含： X ⊆ syncIter R n X （単純帰納） -/
 lemma subset_syncIter {R : Finset (Rule α)} :
   ∀ n X, X ⊆ syncIter R n X
@@ -80,22 +87,5 @@ lemma head_mem_closure_of_prem_subset {R : Finset (Rule α)} {X : Finset α}
   have hClosed : IsClosed R (syncCl R X) := syncCl_closed (R := R) (I := X)
   exact hClosed ht hPrem
 
-/-- 同期列の各段は閉包に含まれる -/
-lemma syncIter_subset_closure {R : Finset (Rule α)} {X : Finset α} :
-  ∀ n, syncIter R n X ⊆ syncCl R X
-| 0     => subset_closure (R:=R) (I:=X)
-| (n+1) =>
-  by
-    classical
-    intro a ha
-    -- a ∈ syncStep R (syncIter R n X)
-    rcases mem_union.mp ha with hIn | hHead
-    · exact (syncIter_subset_closure (R:=R) (X:=X) n) hIn
-    · rcases mem_image.mp hHead with ⟨t, htFilt, rfl⟩
-      have htR : t ∈ R := (mem_filter.mp htFilt).1
-      have hPremX : t.prem ⊆ syncIter R n X := (mem_filter.mp htFilt).2
-      have hPremCl : t.prem ⊆ syncCl R X :=
-        subset_trans hPremX (syncIter_subset_closure (R:=R) (X:=X) n)
-      exact head_mem_closure_of_prem_subset (R:=R) (X:=X) (t:=t) htR hPremCl
 
 end Twostem

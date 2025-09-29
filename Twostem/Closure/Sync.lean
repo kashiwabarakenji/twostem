@@ -1,37 +1,20 @@
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Finset.Card
-import Mathlib.Data.Fintype.Basic
+import Mathlib.Data.Fintype.Card
+import Mathlib.Algebra.BigOperators.Finsupp.Basic
 import Mathlib.Tactic
-import Twostem.Rules
-import LeanCopilot
+import Twostem.Closure.Abstract
+import Twostem.Closure.Core
+import Twostem.Closure.Step
 
 namespace Twostem
+open Closure
 
-open scoped BigOperators
+variable {α : Type*} [DecidableEq α] [Fintype α] [LinearOrder α]
 
-variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]
+/- Your existing `nextHead?`, `step2`, `syncClIter`, `syncCl` go here.
+    Keep only what is necessary to prove equivalence with `Step.cl`. -/
 
-/-!
-同期的閉包：
-* applicable R I  : 今の I で適用可能な規則（prem ⊆ I ∧ head ∉ I）
-* nextHead? R I   : その head の最小元（Option）
-* step R I        : one-step 拡張
-* syncClIter / syncCl : 反復手続き（上限 |α|）
--/
-
-/-- I に対して今適用可能な規則（prem ⊆ I かつ head ∉ I） -/
-def applicable (R : Finset (Rule α)) (I : Finset α) : Finset (Rule α) :=
-  R.filter (fun t => t.prem ⊆ I ∧ t.head ∉ I)
-
-omit [Fintype α] [LinearOrder α] in
---omit [Fintype α] [LinearOrder α] in
-lemma mem_applicable {R : Finset (Rule α)} {I : Finset α} {t : Rule α} :
-  t ∈ applicable R I ↔ t ∈ R ∧ t.prem ⊆ I ∧ t.head ∉ I := by
-  classical
-  unfold applicable
-  simp [Finset.mem_filter, and_left_comm]
-
-/-- 適用可能な規則の head のうち最小のもの（Option） -/
 def nextHead? (R : Finset (Rule α)) (I : Finset α) : Option α :=
   let heads := (applicable R I).image (fun t => t.head)
   if h : heads.Nonempty then
@@ -58,91 +41,42 @@ lemma nextHead?_spec_some
   simp_all only [Finset.image_nonempty]
   simp at h
   rcases h with ⟨h_nonempty, hmin⟩
-  dsimp [applicable] at hmin h_nonempty
+  --dsimp [applicable] at hmin h_nonempty
   -- h_nonempty は heads.Nonempty から ∃ t ∈ applicable, true
   let heads := (applicable R I).image (fun t => t.head)
   let aa := heads.min' ?_
   have ha_in_heads : aa ∈ heads := by
     refine Finset.min'_mem heads (Finset.image_nonempty.mpr h_nonempty)
   obtain ⟨t, ht_app, h_eq⟩ := Finset.mem_image.mp ha_in_heads
-  simp [mem_applicable] at ht_app
+  --simp [mem_applicable] at ht_app
   -- a = min' heads h_nonempty
   have ha_le_t : aa ≤ t.head := by
     subst hmin
     apply Finset.min'_le
-    obtain ⟨left, right⟩ := ht_app
-    obtain ⟨left_1, right⟩ := right
-    rw [h_eq]
-    exact ha_in_heads
+    simp_all only [applicable, Finset.mem_image, Finset.mem_filter, heads, aa]
   have : t.head ≤ aa := by
     --apply Finset.min'_le
     subst hmin
     simp_all only
   have : t.head = aa := le_antisymm this ha_le_t
-  rw [this] at ht_app
-  constructor
-  · subst hmin
-    simp_all only [Finset.mem_image, le_refl, heads, aa]
-    apply Aesop.BuiltinRules.not_intro
-    intro a
-    exact ht_app.2.2 a
-  · use t
-    constructor
-    · subst hmin
-      obtain ⟨left, right⟩ := ht_app
-      exact left
-    · constructor
-      · subst hmin
-        obtain ⟨left, right⟩ := ht_app
-        obtain ⟨left_1, right⟩ := right
-        exact left_1
-      · subst hmin
-        simp_all only
-        simp_all only [Finset.mem_image, le_refl, heads, aa]
-        rfl
+  subst hmin
+  simp_all only [applicable, Finset.mem_image, Finset.mem_filter, le_refl, not_false_eq_true, true_and, heads, aa]
+  obtain ⟨w, h⟩ := ha_in_heads
+  obtain ⟨left, right⟩ := ht_app
+  obtain ⟨left_1, right_1⟩ := h
+  obtain ⟨left_2, right⟩ := right
+  obtain ⟨left_1, right_2⟩ := left_1
+  obtain ⟨left_3, right_2⟩ := right_2
+  simp_all only [not_false_eq_true]
+  apply Exists.intro
+  · apply And.intro
+    · apply left_1
+    · simp_all only [and_self]
 
-
-/-- 1ステップ：最小 head を加える（無ければ同じ I を返す） -/
 def step2 (R : Finset (Rule α)) (I : Finset α) : Finset α :=
   match nextHead? R I with
   | none   => I
   | some a => insert a I
-
-omit [Fintype α] in
-lemma step_id_of_none {R : Finset (Rule α)} {I : Finset α}
-  (h : nextHead? R I = none) : step2 R I = I := by
-  simp [step2, h]
-
-omit [Fintype α] in
-lemma step_card_succ_if_some
-  {R : Finset (Rule α)} {I : Finset α} {a : α}
-  (h : nextHead? R I = some a) :
-  (step2 R I).card = I.card + 1 := by
-  classical
-  rcases nextHead?_spec_some (R:=R) (I:=I) (a:=a) h with ⟨haI, _⟩
-  simp [step2]
-  simp_all only [not_false_eq_true, Finset.card_insert_of_notMem]
-
-omit [Fintype α] in
-lemma step_card_le_succ {R : Finset (Rule α)} {I : Finset α} :
-  (step2 R I).card ≤ I.card + 1 := by
-  classical
-  by_cases h : nextHead? R I = none
-  · simp [step2, h]
-  · simp at h
-    dsimp [nextHead?] at h
-    simp at h
-    dsimp [applicable] at h
-    simp at h
-    rcases h with _ | _
-    dsimp [step2]
-    rename_i h
-    simp_all only [Multiset.quot_mk_to_coe'']
-    obtain ⟨left, right⟩ := h
-    obtain ⟨left_1, right⟩ := right
-    split
-    next x heq => simp_all only [le_add_iff_nonneg_right, zero_le]
-    next x a_1 heq => apply Finset.card_insert_le
 
 def syncClIter (R : Finset (Rule α)) (I : Finset α) : Nat → Finset α
   | 0       => I
@@ -152,120 +86,13 @@ def syncClIter (R : Finset (Rule α)) (I : Finset α) : Nat → Finset α
     | none   => J
     | some a => insert a J
 
-/-
-/-- 反復版：上限 |α| で十分停止 -/
-def syncClIter (R : Finset (Rule α)) : Finset α → Nat → Finset α
-  | I, 0     => I
-  | I, Nat.succ k =>
-      match nextHead? R I with
-      | none   => I
-      | some a => syncClIter R (I ∪ {a}) k
--/
-
 def syncCl [Fintype α] (R : Finset (Rule α)) (I : Finset α) : Finset α :=
   syncClIter R I (Fintype.card α)
 
-
-/- 逐次的に単調増加 -/
-omit [Fintype α] in
-lemma step_increasing (R : Finset (Rule α)) (I : Finset α) :
-  I ⊆ step R I := by
-  classical
-  unfold step
-  by_cases h : nextHead? R I = none
-  · simp_all only [Finset.subset_union_left]
-  · simp_all only [Finset.subset_union_left]
-
-
--- 任意段数 n に対して「I の元は n ステップ同期閉包にも含まれる」という一般補題
-omit [Fintype α]
-lemma mem_syncClIter_of_mem
-  --[DecidableEq α]
-  (R : Finset (Rule α)) :
-  ∀ n (I : Finset α) (a : α), a ∈ I → a ∈ syncClIter R I n := by
-  classical
-  refine Nat.rec
-    (motive := fun n => ∀ (I : Finset α) (a : α), a ∈ I → a ∈ syncClIter R I n)
-    ?base
-    ?step
-  · -- n = 0
-    intro I a ha
-    -- あなたの定義に合わせて：例) syncClIter R I 0 = I
-    simpa [syncClIter] using ha
-  · -- n → n+1
-    intro n IH I a ha
-    -- あなたの定義に合わせて場合分解：例) nextHead? R I
-    cases h : nextHead? R I with
-    | none =>
-        -- 例) none なら syncClIter R I (n+1) = I
-        simp [syncClIter]
-        split
-        next x heq => simp_all only
-        next x a_1 heq => simp_all only [Finset.mem_insert, or_true]
-
-    | some r =>
-        -- 例) some r なら syncClIter R I (n+1) = syncClIter R (I ∪ {r}) n
-        have ha' : a ∈ I ∪ ({r} : Finset α) := by
-          -- a ∈ I から a ∈ I ∪ {r}
-          exact (Finset.mem_union.mpr (Or.inl ha))
-        have : a ∈ syncClIter R (I ∪ ({r} : Finset α)) n := IH (I ∪ {r}) a ha'
-        simp [syncClIter]
-        simp_all only [Finset.union_singleton, Finset.mem_insert, or_true]
-        split
-        next x heq => simp_all only
-        next x a_1 heq => simp_all only [Finset.mem_insert, or_true]
-
-omit [DecidableEq α] [Fintype α] in
-lemma syncCl_infl
-   [Fintype α] [DecidableEq α]
-  {R : Finset (Rule α)} {I : Finset α} :
-  I ⊆ syncCl R I := by
-  classical
-  intro a ha
-  -- syncCl の定義が「Fintype.card α ステップの syncClIter」だと仮定
-  unfold syncCl
-  -- 先ほどの一般補題をカードに適用して使う
-  have gen := mem_syncClIter_of_mem (R := R)
-  exact gen (Fintype.card α) I a ha
-
---omit [Fintype α] in
-lemma applicable_empty_nextHead_none
-  {R : Finset (Rule α)} {I : Finset α}
-  (h : applicable R I = ∅) :
-  nextHead? R I = none := by
-  classical
-  unfold nextHead?
-  simp_all only [Finset.image_empty, Finset.not_nonempty_empty, ↓reduceDIte]
-
-/- `IsClosed R I` と `applicable R I = ∅` は同値 -/
-omit [LinearOrder α] in
-lemma closed_iff_applicable_empty
-  {R : Finset (Rule α)} {I : Finset α} :
-  IsClosed R I ↔ applicable R I = ∅ := by
-  classical
-  constructor
-  · intro hcl
-    -- 閉なら「prem ⊆ I かつ head ∉ I」を満たす規則が存在しない
-    apply Finset.eq_empty_iff_forall_notMem.mpr
-    intro t ht
-    rcases (mem_applicable.mp ht) with ⟨htR, hsub, hnot⟩
-    have : t.head ∈ I := hcl htR hsub
-    exact hnot this
-  · intros happ t htR hsub
-    by_contra hnot
-    -- すると t が applicable に入ってしまい矛盾
-    have : t ∈ applicable R I := by
-      exact (mem_applicable.mpr ⟨htR, hsub, hnot⟩)
-    have : False := by
-      have := congrArg (fun (s : Finset (Rule α)) => t ∈ s) happ
-      simp_all only [Finset.notMem_empty]
-
-    exact False.elim this
-
-
+-- ... paste your concrete defs ...
 /- none になったら以後固定点 -/
---omit [Fintype α] in
-lemma syncClIter_fix_of_none
+omit [Fintype α] in
+private lemma syncClIter_fix_of_none
   {R : Finset (Rule α)} {I : Finset α} {k : Nat}
   (h : nextHead? R I = none) :
   syncClIter R I k = I := by
@@ -276,8 +103,9 @@ lemma syncClIter_fix_of_none
       simp [syncClIter]
       simp_all only
 
+omit [Fintype α] in
 /-- 反復の各段階でのカード上界（高々 +1） -/
-lemma card_syncClIter_le (R : Finset (Rule α)) :
+private lemma card_syncClIter_le (R : Finset (Rule α)) :
   ∀ (k : Nat) (I : Finset α), (syncClIter R I k).card ≤ I.card + k := by
   classical
   intro k; induction k with
@@ -335,9 +163,9 @@ lemma card_syncClIter_le (R : Finset (Rule α)) :
         have right : syncClIter R (insert a I) (k + 1) = step2 R (syncClIter R (insert a I) k) := rfl
         rw [left, right, ih]
 
-
+omit [Fintype α] in
 /-- 停止したら以後も同じ集合のまま（停止は不変） -/
-lemma stops_constant
+private lemma stops_constant
     (R : Finset (Rule α)) :
   ∀ {I k}, nextHead? R I = none → syncClIter R I k = I := by
   classical
@@ -353,9 +181,9 @@ lemma stops_constant
       -- 2 ステップ目以降も同じ（以後も nextHead? R I = none を再評価する形だが，定義から都度 I のまま）
       exact syncClIter_fix_of_none h
 
-omit [DecidableEq α] in
+omit [Fintype α][DecidableEq α] in
 /-- 段 i で `some` なら基数が 1 つ増える -/
-lemma step_card_succ_of_some
+private lemma step_card_succ_of_some
     (R : Finset (Rule α)) [DecidableEq α]
     {I : Finset α} {a : α}
     (h : nextHead? R I = some a) :
@@ -372,7 +200,7 @@ lemma step_card_succ_of_some
   simpa [this, Nat.succ_eq_add_one] using Finset.card_insert_of_notMem a_notin
 
 omit [Fintype α] in
-lemma syncClIter_add
+private lemma syncClIter_add
     (R : Finset (Rule α)) (I : Finset α) :
   ∀ i m, syncClIter R I (i + m) = syncClIter R (syncClIter R I i) m := by
   classical
@@ -390,7 +218,7 @@ lemma syncClIter_add
       | some a => simp [syncClIter, IH]
 
 omit [DecidableEq α] in
-lemma all_prev_some_of_some_at_j
+private lemma all_prev_some_of_some_at_j
     (R : Finset (Rule α)) [DecidableEq α]
     (I : Finset α) :
   ∀ {j a}, nextHead? R (syncClIter R I j) = some a →
@@ -425,9 +253,9 @@ lemma all_prev_some_of_some_at_j
   have : nextHead? R (syncClIter R I i) = some a := by simpa [hstop] using hj
   exact hnone a this
 
-omit [DecidableEq α] in
+omit [Fintype α][DecidableEq α] in
 /-- 「各段で some」なら段 m で基数は少なくとも `I.card + m` -/
-lemma card_ge_if_all_some_up_to
+private lemma card_ge_if_all_some_up_to
     (R : Finset (Rule α)) [DecidableEq α]
     (I : Finset α) :
   ∀ m, (∀ i, i < m → ∃ a, nextHead? R (syncClIter R I i) = some a) →
@@ -473,7 +301,7 @@ lemma card_ge_if_all_some_up_to
       simpa using this
 
 omit [DecidableEq α] [Fintype α] in
-lemma exists_stop_index
+private lemma exists_stop_index
     (R : Finset (Rule α)) (I : Finset α)
     [Fintype α] [DecidableEq α] :
   ∃ j ≤ Fintype.card α, nextHead? R (syncClIter R I j) = none := by
@@ -507,10 +335,10 @@ lemma exists_stop_index
     Finset.card_le_univ _
   exact (Nat.lt_of_le_of_lt hle hgt).false
 
-omit [DecidableEq α] [Fintype α] in
-/-- `syncCl` は R-閉 -/
-lemma syncCl_closed {R : Finset (Rule α)} {I : Finset α} [Fintype α] [DecidableEq α] :
+/-- `syncCl` is closed. (Already proved in your first group.) -/
+lemma syncCl_closed {R : Finset (Rule α)} {I : Finset α} :
   IsClosed R (syncCl R I) := by
+  -- import from your earlier proof or keep here
   classical
   -- ある j ≤ |α| で nextHead? R (syncClIter R I j) = none
   rcases exists_stop_index R I with ⟨j, hj, hjnone⟩
@@ -536,9 +364,59 @@ lemma syncCl_closed {R : Finset (Rule α)} {I : Finset α} [Fintype α] [Decidab
   dsimp [applicable] at hnone
   simp_all only [Finset.filter_eq_empty_iff, not_and, Decidable.not_not]
 
+omit [Fintype α] in
+-- 任意段数 n に対して「I の元は n ステップ同期閉包にも含まれる」という一般補題
+--omit [Fintype α]
+lemma mem_syncClIter_of_mem
+  --[DecidableEq α]
+  (R : Finset (Rule α)) :
+  ∀ n (I : Finset α) (a : α), a ∈ I → a ∈ syncClIter R I n := by
+  classical
+  refine Nat.rec
+    (motive := fun n => ∀ (I : Finset α) (a : α), a ∈ I → a ∈ syncClIter R I n)
+    ?base
+    ?step
+  · -- n = 0
+    intro I a ha
+    -- あなたの定義に合わせて：例) syncClIter R I 0 = I
+    simpa [syncClIter] using ha
+  · -- n → n+1
+    intro n IH I a ha
+    -- あなたの定義に合わせて場合分解：例) nextHead? R I
+    cases h : nextHead? R I with
+    | none =>
+        -- 例) none なら syncClIter R I (n+1) = I
+        simp [syncClIter]
+        split
+        next x heq => simp_all only
+        next x a_1 heq => simp_all only [Finset.mem_insert, or_true]
+
+    | some r =>
+        -- 例) some r なら syncClIter R I (n+1) = syncClIter R (I ∪ {r}) n
+        have ha' : a ∈ I ∪ ({r} : Finset α) := by
+          -- a ∈ I から a ∈ I ∪ {r}
+          exact (Finset.mem_union.mpr (Or.inl ha))
+        have : a ∈ syncClIter R (I ∪ ({r} : Finset α)) n := IH (I ∪ {r}) a ha'
+        simp [syncClIter]
+        simp_all only [Finset.union_singleton, Finset.mem_insert, or_true]
+        split
+        next x heq => simp_all only
+        next x a_1 heq => simp_all only [Finset.mem_insert, or_true]
+
+lemma syncCl_infl {R : Finset (Rule α)} {I : Finset α} :
+  I ⊆ syncCl R I := by
+  -- from `mem_syncClIter_of_mem` + definition of `syncCl`
+classical
+  intro a ha
+  -- syncCl の定義が「Fintype.card α ステップの syncClIter」だと仮定
+  unfold syncCl
+  -- 先ほどの一般補題をカードに適用して使う
+  have gen := mem_syncClIter_of_mem (R := R)
+  exact gen (Fintype.card α) I a ha
+
 --rulesにあるdefinitionalClosure_specと同じ？
 omit [DecidableEq α] [Fintype α] in
-lemma syncCl_subset_of_closed
+private lemma syncCl_subset_of_closed
   {R : Finset (Rule α)} {I J : Finset α} [Fintype α] [DecidableEq α]
   (hIJ : I ⊆ J) (hJ : IsClosed R J) :
   syncCl R I ⊆ J := by
@@ -566,60 +444,57 @@ lemma syncCl_subset_of_closed
   -- k = Fintype.card α を適用
   exact this (Fintype.card α)
 
-omit [DecidableEq α] [Fintype α] in
-lemma syncClIter_subset_closure
-  [Fintype α] [DecidableEq α]
-  {R : Finset (Rule α)} {X : Finset α} :
-  ∀ n, syncClIter R X n ⊆ syncCl R X := by
+omit [Fintype α] [LinearOrder α] in
+/-- 固定点 ⇒ 閉：`step R S = S` なら `S` は R-閉。 -/
+private lemma isClosed_of_step_fixed {R : Finset (Rule α)} {S : Finset α}
+  (hfix : step R S = S) : IsClosed R S := by
   classical
-  intro n
-  induction' n with n ih
-  · -- n = 0 : ただの膨張性 I ⊆ syncCl R I
-    simpa [syncClIter] using (syncCl_infl (R := R) (I := X))
-  · -- n+1 段
-    intro a ha
-    -- 前段の集合
-    set J := syncClIter R X n with hJ
-    -- 定義に従って分岐
-    cases h : nextHead? R J with
-    | none =>
-        -- 止まっているので n+1 段も J
-        -- 目標は a ∈ syncCl R X
-        -- まず a ∈ J（書き換え）
-        have hnone' : nextHead? R (syncClIter R X n) = none := by
-        -- h : nextHead? R J = none を hJ で書き換える
-          simpa [hJ] using h
+  intro t htR hPrem
+  have htFilt : t ∈ R.filter (fun u => u.prem ⊆ S) :=
+    Finset.mem_filter.mpr ⟨htR, hPrem⟩
+  have hHeadInFires : t.head ∈ fires R S :=
+    Finset.mem_image.mpr ⟨t, htFilt, rfl⟩
+  have hHeadInStep : t.head ∈ step R S :=
+    Finset.mem_union.mpr (Or.inr hHeadInFires)
+  -- `step R S = S` で書き換え
+  exact (congrArg (fun X => t.head ∈ X) hfix) ▸ hHeadInStep
 
-        have hstep : syncClIter R X (n+1) = J := by
-          simp [syncClIter, hJ,hnone']
+omit [LinearOrder α] in
+/-- `Step.cl R I` は R-閉。`Step.cl_fixed` をそのまま使うだけ。 -/
+private lemma Step.cl_closed (R : Finset (Rule α)) (I : Finset α) :
+  IsClosed R (Step.cl R I) :=
+  isClosed_of_step_fixed (R := R) (S := Step.cl R I) (Step.cl_fixed R I)
 
-        have haJ : a ∈ J := by
-          simpa [hstep] using ha
+/-- Bridge: the concrete `syncCl` coincides with the abstract `Step.cl`. -/
+@[simp] lemma syncCl_eq_step_closure (R : Finset (Rule α)) (I : Finset α) :
+  syncCl R I = Step.cl R I := by
+  -- `⊆` : by minimality of `Step.cl` (since `syncCl` is R-closed and contains I)
+  -- `⊇` : `Step.cl` is closed and contains I, while `syncCl` is the least fixed point reached by selection steps (or use minimality again if you have it for syncCl).
+  -- Conclude by antisymmetry.
+  classical
+  -- (⊇) Step.cl ⊆ syncCl ：最小性（J := syncCl）で得る
+  have h_right_to_left : Step.cl R I ⊆ syncCl R I :=
+    Step.cl_minimal (R := R) (I := I) (J := syncCl R I)
+      (hIJ := syncCl_infl  (R := R) (I := I))
+      (hJ  := syncCl_closed (R := R) (I := I))
 
-        exact ih haJ
+  -- I ⊆ Step.cl を用意（iterate_subset を |α| に適用して定義展開）
+  have hI_to_cl : I ⊆ Step.cl R I := by
+    -- まず Nat.iterate 形で I ⊆ (step R)^[|α|] I
+    have h0 : I ⊆ Nat.iterate (step R) (Fintype.card α) I :=
+      iterate_subset (R := R) (I := I) (n := Fintype.card α)
+    -- これを Step.cl の定義形に書き換える
+    change I ⊆ Closure.Operator.iterate (Step.op R) (Fintype.card α) I
+    change I ⊆ ((Step.op R).f)^[Fintype.card α] I
+    dsimp [Step.op]  -- ((Step.op R).f) = step R
+    exact h0
 
-    | some a₀ =>
-        -- 1 個挿入：syncClIter R X (n+1) = insert a₀ J
-        have hstep : syncClIter R X (n+1) = insert a₀ J := by
-          simp [syncClIter, hJ]
-          simp_all only [J]
-        -- a の場合分け
-        rcases (by simpa [hstep] using ha) with h_eq | haJ
-        · -- a = a₀ の場合：a₀ が規則の head から来たことを使う
-          -- nextHead?_spec_some から前提を抽出
-          obtain ⟨_, t, htR, hPrem, hHead⟩ :=
-            (nextHead?_spec_some (R := R) (I := J) (a := a₀) h)
-          -- prem ⊆ syncCl R X は、IH で J ⊆ syncCl だから合成できる
-          have hPrem' : t.prem ⊆ syncCl R X := fun u hu => ih (by
-            -- u ∈ J を示して ih に入れる
-            -- hPrem : t.prem ⊆ J
-            simpa [hJ] using hPrem hu)
-          -- 閉包の閉性で head ∈ syncCl R X
-          have hclosed : IsClosed R (syncCl R X) := syncCl_closed (R := R) (I := X)
-          have : t.head ∈ syncCl R X := hclosed htR hPrem'
-          -- a = a₀ = t.head なので目標成立
-          simpa [h_eq, hHead]
-        · -- a ∈ J の場合：IH で OK
-          exact ih (by simpa [hJ] using haJ)
+  -- (⊆) syncCl ⊆ Step.cl ：syncCl の最小性（J := Step.cl）で得る
+  have h_left_to_right : syncCl R I ⊆ Step.cl R I :=
+    syncCl_subset_of_closed (R := R) (I := I) (J := Step.cl R I)
+      hI_to_cl (Step.cl_closed R I)
+
+  exact le_antisymm h_left_to_right h_right_to_left
+
 
 end Twostem

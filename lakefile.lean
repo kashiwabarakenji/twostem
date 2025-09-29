@@ -11,12 +11,17 @@ package «twostem» where
 lean_lib «Twostem» where
   -- add library configuration options here
   roots := #[
+    `Twostem.Closure.Abstract,
+    `Twostem.Closure.Core,
+    `Twostem.Closure.Step,
+    `Twostem.Closure.Sync,
     `Twostem.Rules,
     `Twostem.Closure,
     `Twostem.Fiber,
     `Twostem.NDS,
     `Twostem.Synchronous,
     `Twostem.Bridge,
+    `Twostem.Derivation,
     `Twostem
 --    `Twostem.Twostem
     /-

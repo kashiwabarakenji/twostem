@@ -24,16 +24,20 @@ deriving DecidableEq
 
 variable {α : Type _} [DecidableEq α]
 
+--使ってないかも。
 /-- Two-Stem: 前提サイズ ≤ 2 -/
 def TwoStem (t : Rule α) : Prop := t.prem.card ≤ 2
 
+--使ってないし、空前提なしの仮定は別のところにある。
 /-- NoEmpty Premise: 空前提なし -/
 def NoEmpty (t : Rule α) : Prop := t.prem.Nonempty
 
+--UniqueChildという同値な仮定がBridge.leanにある。
 /-- UniqueChild (UC): 各 head ごとに規則は高々1本 -/
 def UC (R : Finset (Rule α)) : Prop :=
   ∀ a : α, (R.filter (fun t => t.head = a)).card ≤ 1
 
+--下のmem_support_iffで使っているだけ。
 /-- サポート：前提か head に出現する点の集合 -/
 def support (R : Finset (Rule α)) : Finset α :=
   (R.biUnion (fun t => t.prem ∪ {t.head}))
@@ -52,6 +56,7 @@ def IsClosed (R : Finset (Rule α)) (I : Finset α) : Prop :=
 def fires (R : Finset (Rule α)) (X : Finset α) : Finset α :=
   (R.filter (fun t => t.prem ⊆ X)).image (fun t => t.head)
 
+--step2という似たものがあるが、中身が違う。
 /-- closure の“定義論的”候補：I を含む最小の R-閉集合（交わり定義） -/
 def step (R : Finset (Rule α)) (X : Finset α) : Finset α :=
   X ∪ fires R X
@@ -189,6 +194,7 @@ lemma Nat.strictChain_gain {a : ℕ → ℕ} :
     simp_all only [implies_true, ge_iff_le, le_refl]
     linarith
 
+/- Abstract.leanに移した。
 /- 有限集合上では，長さ `card α + 1` の厳密包含列は存在しない -/
 omit [DecidableEq α] in
 lemma no_strict_chain_up_to_card [Fintype α] [DecidableEq α]
@@ -222,30 +228,34 @@ lemma no_strict_chain_up_to_card [Fintype α] [DecidableEq α]
   apply Nat.lt_irrefl _ (lt_of_le_of_lt this ?_)
   simp_all only [ge_iff_le]
   linarith
-
+-/
+/- abstract.leanに移した。
 omit [DecidableEq α] in
 lemma impossible_all_strict_iterate [Fintype α] [DecidableEq α]
     (f : Set α → Set α) (s : Set α) :
     ¬ (∀ k ≤ Fintype.card α, (Nat.iterate f k) s ⊂ (Nat.iterate f (k+1)) s) :=
   no_strict_chain_up_to_card (A := fun k => (Nat.iterate f k) s)
+-/
 
+--Closure.leanと内容がかぶっている部分があるかも。
 /-- 拡大的（inflationary）性：すべての `s` について `s ⊆ f s`. -/
 def Inflationary (f : Set α → Set α) : Prop :=
   ∀ s : Set α, s ⊆ f s
 
---使ってない。
+--FinsetのF
 def InflationaryF (f : Finset α → Finset α) : Prop :=
   ∀ s : Finset α, s ⊆ f s
 
---使ってない。
+--使っている。
 lemma step_infl {α : Type*} [DecidableEq α] (R : Finset (Rule α)) :
   InflationaryF (step R) := by
   intro s
   simp [step]
 
+/-abstract.leanに移した。
 omit [DecidableEq α] in
 /-- 単調かつ拡大的な作用素は、`|V|` 回の反復で必ず停止する（点ごと） -/
-theorem iterate_stops_in_card [DecidableEq α] [Fintype α]
+private lemma iterate_stops_in_card [DecidableEq α] [Fintype α]
     (f : Set α → Set α)
     (_ : Monotone f)
     (infl : Inflationary f)
@@ -321,8 +331,9 @@ theorem iterate_stops_in_card [DecidableEq α] [Fintype α]
     propagate (Fintype.card α) hk
 
   exact this
+-/
 
-lemma iterate_eq_propagate {β : Type*} (f : β → β) (s : β)
+private lemma iterate_eq_propagate {β : Type*} (f : β → β) (s : β)
     {k m : ℕ} (hkm : k ≤ m)
     (heq : (Nat.iterate f k) s = (Nat.iterate f (k+1)) s) :
     (Nat.iterate f m) s = (Nat.iterate f (m+1)) s := by
@@ -365,6 +376,7 @@ lemma iterate_eq_propagate {β : Type*} (f : β → β) (s : β)
   rw [add_comm]
   rw [add_comm 1 k]
 
+/- Abstract.leanに移した。
 lemma fixed_point_at_card {α : Type*} [Fintype α] [DecidableEq α] (R : Finset (Rule α)) (I : Finset α) :
     step R (Nat.iterate (step R) (Fintype.card α) I) = Nat.iterate (step R) (Fintype.card α) I := by
 --lemma fixed_point_at_card {α : Type*} [Fintype α] [DecidableEq α]
@@ -446,7 +458,9 @@ lemma fixed_point_at_card {α : Type*} [Fintype α] [DecidableEq α] (R : Finset
     rw [←Function.iterate_succ_apply' (step R) (Fintype.card α) I]
     exact propagate
   simpa using propagate'.symm
+-/
 
+/- Abstract.leanに移した。
 omit [DecidableEq α] in
 lemma iterate_stable [Fintype α] [DecidableEq α] {R : Finset (Rule α)} {I : Finset α}
    (C : Finset α) (h_C : C = Nat.iterate (step R) (Fintype.card α) I):
@@ -456,7 +470,9 @@ lemma iterate_stable [Fintype α] [DecidableEq α] {R : Finset (Rule α)} {I : F
 
   let fpc := fixed_point_at_card R I
   rw [fpc]
-
+  exact step R (Nat.iterate (step R) (Fintype.card α) I) = Nat.iterate (step R) (Fintype.card α) I
+-/
+/-
 omit [DecidableEq α] in
 -- 補題: step が C で安定しないなら、k と k+1 の反復は異なる
 lemma iterate_neq [Fintype α] [DecidableEq α] {R : Finset (Rule α)} {I : Finset α}
@@ -469,7 +485,8 @@ lemma iterate_neq [Fintype α] [DecidableEq α] {R : Finset (Rule α)} {I : Fins
   have h_C_stable : step R (Nat.iterate (step R) (Fintype.card α) I) = Nat.iterate (step R) (Fintype.card α) I := by
     apply iterate_stable _ rfl
   exact h_step_neq h_C_stable
-
+-/
+/-
 omit [DecidableEq α] in
 -- 補題: step が安定しない場合、k 回の反復のサイズは k 以上
 lemma iterates_card_increasing [Fintype α] [DecidableEq α] {R : Finset (Rule α)} {I : Finset α}
@@ -504,7 +521,8 @@ lemma iterates_card_increasing [Fintype α] [DecidableEq α] {R : Finset (Rule �
       -- 濃度の厳密増加
       exact Finset.card_lt_card hss
     linarith
-
+-/
+/-Step.leanに移した。
 -- 補題: 閉集合 J が I を含むなら、すべての反復は J に含まれる
 lemma closed_subset_iterate {α : Type*} [DecidableEq α]
   {R : Finset (Rule α)} {I J : Finset α}
@@ -545,7 +563,9 @@ lemma closed_subset_iterate {α : Type*} [DecidableEq α]
     have ha' : a ∈ step R ((Nat.iterate (step R) k) I) := Eq.mp e ha
     -- 先に示した包含に流し込む
     exact hsubset ha'
+-/
 
+/-
 -- 本命の証明: 定義論的閉包の性質
 omit [DecidableEq α] in
 lemma definitionalClosure_spec [Fintype α] [DecidableEq α] {R : Finset (Rule α)} {I : Finset α} :
@@ -582,6 +602,6 @@ lemma definitionalClosure_spec [Fintype α] [DecidableEq α] {R : Finset (Rule �
   · -- 第三部分: 最小性
     intro J hI hJ
     exact closed_subset_iterate hI hJ (Fintype.card α)
-
+-/
 
 end Twostem
