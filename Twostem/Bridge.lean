@@ -855,24 +855,7 @@ lemma multiplicity_le_one_addedFamily
 
 end Twostem
 
-open Finset
-
-namespace TestUC
-
--- ここでは Twostem の Rule / UC / UniqueChild を使っている想定です。
--- 必要なら完全修飾子 Twostem. を付けてください。
--- 例：Closure.Rule, Twostem.UC, Twostem.UniqueChild, Twostem.UniqueChild_iff_UC
-
--- 具体例用に α := Bool
-variable (α := Bool)
-
--- Rule の形だけ使います（head と prem があれば十分）
--- 既存の定義に DecidableEq が無い場合は、下の1行で局所的に用意すると安定します。
-noncomputable instance : DecidableEq (Closure.Rule Bool) := Classical.decEq _
-
-
-
-open Finset
+---以下は検証用コード。しばらく残す。
 
 namespace TestUC
 
@@ -884,6 +867,8 @@ namespace TestUC
 noncomputable instance : DecidableEq (Closure.Rule Bool) := Classical.decEq _
 instance : DecidableEq Bool := inferInstance
 
+open Finset
+
 def r1 : Closure.Rule Bool := { head := true,  prem := (∅ : Finset Bool) }
 def r2 : Closure.Rule Bool := { head := false, prem := (∅ : Finset Bool) }
 def r3 : Closure.Rule Bool := { head := true,  prem := ({false} : Finset Bool) }
@@ -893,59 +878,52 @@ noncomputable def Rbad  : Finset (Closure.Rule Bool) := insert r3 {r1}   -- = {r
 
 @[simp] lemma mem_Rgood_iff {x : Closure.Rule Bool} :
     x ∈ Rgood ↔ x = r1 ∨ x = r2 := by
-  -- Rgood = insert r2 {r1}
   constructor
   · intro hx
-    -- x ∈ insert r2 {r1} → x=r2 ∨ x∈{r1}
     have hx' : x = r2 ∨ x ∈ ({r1} : Finset (Closure.Rule Bool)) :=
       (mem_insert).1 hx
     cases hx' with
     | inl hx2 =>
-        left
-        sorry
+        right  -- x = r2 なので、ゴール (x = r1 ∨ x = r2) の右側
+        exact hx2
     | inr hx1 =>
-        -- x∈{r1} → x=r1
         have hxeq : x = r1 := (mem_singleton).1 hx1
-        right
-        cases hxeq
-        sorry
+        left  -- x = r1 なので、ゴール (x = r1 ∨ x = r2) の左側
+        exact hxeq
   · intro h
-    -- 逆向き：x=r1∨x=r2 → x∈insert r2 {r1}
     cases h with
     | inl hx1 =>
         cases hx1
-        -- r1 ∈ insert r2 {r1} は右側の単集合に入る方
         have : r1 ∈ ({r1} : Finset (Closure.Rule Bool)) := (mem_singleton).2 rfl
         exact (mem_insert).2 (Or.inr this)
     | inr hx2 =>
         cases hx2
-        -- r2 は insert の先頭
         exact (mem_insert_self r2 _)
 
 @[simp] lemma mem_Rbad_iff {x : Closure.Rule Bool} :
     x ∈ Rbad ↔ x = r1 ∨ x = r3 := by
-  -- Rbad = insert r3 {r1}
   constructor
   · intro hx
     have hx' : x = r3 ∨ x ∈ ({r1} : Finset (Closure.Rule Bool)) :=
       (mem_insert).1 hx
     cases hx' with
     | inl h =>
-        left;
-        sorry
+        right  -- x = r3 なので、ゴール (x = r1 ∨ x = r3) の右側
+        exact h
     | inr h1 =>
         have : x = r1 := (mem_singleton).1 h1
-        right; cases this; sorry
+        left  -- x = r1 なので、ゴール (x = r1 ∨ x = r3) の左側
+        exact this
   · intro h
     cases h with
-    | inl hx3 =>
-        cases hx3
-        sorry
-    | inr hx1 =>
+    | inl hx1 =>
         cases hx1
         have : r1 ∈ ({r1} : Finset (Closure.Rule Bool)) := (mem_singleton).2 rfl
-        apply (mem_insert).2
-        exact Or.symm (Or.inr rfl)
+        exact (mem_insert).2 (Or.inr this)
+    | inr hx3 =>
+        cases hx3
+        exact (mem_insert_self r3 _)
+
 
 -- ---------- 一般形：等価の .mp / .mpr がそのまま使える ----------
 
@@ -966,74 +944,41 @@ end general
 -- ---------- 良い例：UC が成り立つ（＝ head ごとに高々1本） ----------
 
 example : Twostem.UC (α:=Bool) Rgood := by
-  -- 任意の a に対し filter( head=a ) は単集合になる
   intro a
-  -- a で場合分け：a=false → {r2}, a=true → {r1}
   cases a with
   | false =>
-      -- filter = {r2}
       have hx :
         (Rgood.filter (fun t => t.head = false))
           = ({r2} : Finset (Closure.Rule Bool)) := by
-        -- 外延同値
         apply ext; intro x
         constructor
         · intro hxmem
-          -- x ∈ Rgood ∧ x.head=false
           have hR : x ∈ Rgood := (mem_filter).1 hxmem |>.1
           have hH : x.head = false := (mem_filter).1 hxmem |>.2
-          -- Rgood のとり得る形
-          have hx' : x = r1 ∨ x = r2 :=
-            (mem_Rgood_iff).1 hR
+          have hx' : x = r1 ∨ x = r2 := (mem_Rgood_iff).1 hR
           cases hx' with
           | inl h1 =>
-              -- r1.head=true なので false と矛盾 → こちらの分岐は起きない
-              -- 形式的に矛盾から何でも出せる：
               have : r1.head = true := rfl
-              -- hH : x.head = false,  h1 : x=r1
-              cases h1
-              cases this
-              cases hH
-          | inr h2 =>
-              cases h2
-              -- x=r2 → {r2}
-              exact (mem_singleton).2 rfl
+              cases h1; cases this; cases hH
+          | inr h2 => cases h2; exact (mem_singleton).2 rfl
         · intro hxmem
-          -- {r2} ⊆ filter …
           have hx2 : x = r2 := (mem_singleton).1 hxmem
-          -- r2 ∈ Rgood
           have hR2 : r2 ∈ Rgood := by
-            apply (mem_insert).2
-            subst hx2
-            simp_all only [mem_singleton, true_or]
-
-          -- 条件を満たすペア
-          have hpair : r2 ∈ Rgood ∧ r2.head = false := by
-            apply And.intro
-            · exact hR2
-            · rfl
-          cases hx2
-          exact (mem_filter).2 hpair
-      -- 単集合の濃度は 1
-      -- よって card ≤ 1
+            apply (mem_insert).2; left; rfl
+          have hpair : r2 ∈ Rgood ∧ r2.head = false := And.intro hR2 rfl
+          cases hx2; exact (mem_filter).2 hpair
       have hcard : (Rgood.filter (fun t => t.head = false)).card ≤ 1 := by
-        -- card (filter …) = card {r2}
         have heq :
           (Rgood.filter (fun t => t.head = false)).card
-            = ({r2} : Finset (Closure.Rule Bool)).card := by
-          -- card の congrArg
-          exact congrArg (fun (s : Finset (Closure.Rule Bool)) => s.card) hx
-        -- card {r2} = 1
+            = ({r2} : Finset (Closure.Rule Bool)).card :=
+          congrArg (fun (s : Finset (Closure.Rule Bool)) => s.card) hx
         have hone : ({r2} : Finset (Closure.Rule Bool)).card = 1 :=
           card_singleton r2
-        -- 置換して ≤ 1
-        have : (Rgood.filter (fun t => t.head = false)).card = 1 := by
-          exact Eq.trans heq hone
-        -- 1 ≤ 1
+        have : (Rgood.filter (fun t => t.head = false)).card = 1 :=
+          Eq.trans heq hone
         exact Eq.le this
       exact hcard
   | true =>
-      -- 同様に filter = {r1}
       have hx :
         (Rgood.filter (fun t => t.head = true))
           = ({r1} : Finset (Closure.Rule Bool)) := by
@@ -1044,20 +989,14 @@ example : Twostem.UC (α:=Bool) Rgood := by
           have hH : x.head = true := (mem_filter).1 hxmem |>.2
           have hx' : x = r1 ∨ x = r2 := (mem_Rgood_iff).1 hR
           cases hx' with
-          | inl h1 =>
-              cases h1
-              exact (mem_singleton).2 rfl
-          | inr h2 =>
-              cases h2
-              -- r2.head=false と真の矛盾
-              cases hH
+          | inl h1 => cases h1; exact (mem_singleton).2 rfl
+          | inr h2 => cases h2; cases hH
         · intro hxmem
           have hx1 : x = r1 := (mem_singleton).1 hxmem
           have hR1 : r1 ∈ Rgood :=
             (mem_insert).2 (Or.inr ((mem_singleton).2 rfl))
           have hpair : r1 ∈ Rgood ∧ r1.head = true := And.intro hR1 rfl
-          cases hx1
-          exact (mem_filter).2 hpair
+          cases hx1; exact (mem_filter).2 hpair
       have heq :
         (Rgood.filter (fun t => t.head = true)).card
           = ({r1} : Finset (Closure.Rule Bool)).card :=
@@ -1072,105 +1011,90 @@ example : Twostem.UC (α:=Bool) Rgood := by
 example : Twostem.UniqueChild (α:=Bool) Rgood :=
   (Twostem.UniqueChild_iff_UC (α:=Bool) Rgood).mpr
     (by
-      -- 直前の example を再利用のノリで、もう一回同じ証明でもOK
-      intro a; cases a <;> first
-      | -- a=false
-        -- filter=false は {r2}
-        have hx :
-          (Rgood.filter (fun t => t.head = false))
-            = ({r2} : Finset (Closure.Rule Bool)) := by
-          -- 先ほどと同じ議論（省略せずに書くと長いので、ここでは短く）
-          -- ここでの詳細は上の example と同様に展開できます
-          apply ext; intro x
-          constructor
-          · intro hxmem
-            have hR : x ∈ Rgood := (mem_filter).1 hxmem |>.1
-            have hH : x.head = false := (mem_filter).1 hxmem |>.2
-            have hx' : x = r1 ∨ x = r2 := (mem_Rgood_iff).1 hR
-            cases hx' with
-            | inl h1 => cases h1; cases hH
-            | inr h2 => cases h2; exact (mem_singleton).2 rfl
-          · intro hxmem
-            have hx2 : x = r2 := (mem_singleton).1 hxmem
-            have hR2 : r2 ∈ Rgood :=
-              (mem_insert).2 (Or.inr ((mem_singleton).2 rfl))
-            have hpair : r2 ∈ Rgood ∧ r2.head = false := And.intro hR2 rfl
-            cases hx2; exact (mem_filter).2 hpair
-        have heq :
-          (Rgood.filter (fun t => t.head = false)).card
-            = ({r2} : Finset (Closure.Rule Bool)).card :=
-          congrArg (fun (s : Finset (Closure.Rule Bool)) => s.card) hx
-        have hone : ({r2} : Finset (Closure.Rule Bool)).card = 1 :=
-          card_singleton r2
-        have hfin :
-          (Rgood.filter (fun t => t.head = false)).card = 1 :=
-          Eq.trans heq hone
-        exact Eq.le hfin
-      | -- a=true
-        have hx :
-          (Rgood.filter (fun t => t.head = true))
-            = ({r1} : Finset (Closure.Rule Bool)) := by
-          apply ext; intro x
-          constructor
-          · intro hxmem
-            have hR : x ∈ Rgood := (mem_filter).1 hxmem |>.1
-            have hH : x.head = true := (mem_filter).1 hxmem |>.2
-            have hx' : x = r1 ∨ x = r2 := (mem_Rgood_iff).1 hR
-            cases hx' with
-            | inl h1 => cases h1; exact (mem_singleton).2 rfl
-            | inr h2 => cases h2; cases hH
-          · intro hxmem
-            have hx1 : x = r1 := (mem_singleton).1 hxmem
-            have hR1 : r1 ∈ Rgood :=
-              (mem_insert).2 (Or.inr ((mem_singleton).2 rfl))
-            have hpair : r1 ∈ Rgood ∧ r1.head = true := And.intro hR1 rfl
-            cases hx1; exact (mem_filter).2 hpair
-        have heq :
-          (Rgood.filter (fun t => t.head = true)).card
-            = ({r1} : Finset (Closure.Rule Bool)).card :=
-          congrArg (fun (s : Finset (Closure.Rule Bool)) => s.card) hx
-        have hone : ({r1} : Finset (Closure.Rule Bool)).card = 1 :=
-          card_singleton r1
-        have hfin :
-          (Rgood.filter (fun t => t.head = true)).card = 1 :=
-          Eq.trans heq hone
-        sorry
+      intro a
+      cases a with
+      | false =>
+          -- a = false の場合
+          have hx :
+            (Rgood.filter (fun t => t.head = false))
+              = ({r2} : Finset (Closure.Rule Bool)) := by
+            apply ext; intro x
+            constructor
+            · intro hxmem
+              have hR : x ∈ Rgood := (mem_filter).1 hxmem |>.1
+              have hH : x.head = false := (mem_filter).1 hxmem |>.2
+              have hx' : x = r1 ∨ x = r2 := (mem_Rgood_iff).1 hR
+              cases hx' with
+              | inl h1 => cases h1; cases hH
+              | inr h2 => cases h2; exact (mem_singleton).2 rfl
+            · intro hxmem
+              have hx2 : x = r2 := (mem_singleton).1 hxmem
+              have hR2 : r2 ∈ Rgood := (mem_insert).2 (Or.inl rfl)
+              have hpair : r2 ∈ Rgood ∧ r2.head = false := And.intro hR2 rfl
+              cases hx2; exact (mem_filter).2 hpair
+          have heq :
+            (Rgood.filter (fun t => t.head = false)).card
+              = ({r2} : Finset (Closure.Rule Bool)).card :=
+            congrArg (fun (s : Finset (Closure.Rule Bool)) => s.card) hx
+          have hone : ({r2} : Finset (Closure.Rule Bool)).card = 1 :=
+            card_singleton r2
+          have hfin :
+            (Rgood.filter (fun t => t.head = false)).card = 1 :=
+            Eq.trans heq hone
+          exact Eq.le hfin
+      | true =>
+          -- a = true の場合
+          have hx :
+            (Rgood.filter (fun t => t.head = true))
+              = ({r1} : Finset (Closure.Rule Bool)) := by
+            apply ext; intro x
+            constructor
+            · intro hxmem
+              have hR : x ∈ Rgood := (mem_filter).1 hxmem |>.1
+              have hH : x.head = true := (mem_filter).1 hxmem |>.2
+              have hx' : x = r1 ∨ x = r2 := (mem_Rgood_iff).1 hR
+              cases hx' with
+              | inl h1 => cases h1; exact (mem_singleton).2 rfl
+              | inr h2 => cases h2; cases hH
+            · intro hxmem
+              have hx1 : x = r1 := (mem_singleton).1 hxmem
+              have hR1 : r1 ∈ Rgood :=
+                (mem_insert).2 (Or.inr ((mem_singleton).2 rfl))
+              have hpair : r1 ∈ Rgood ∧ r1.head = true := And.intro hR1 rfl
+              cases hx1; exact (mem_filter).2 hpair
+          have heq :
+            (Rgood.filter (fun t => t.head = true)).card
+              = ({r1} : Finset (Closure.Rule Bool)).card :=
+            congrArg (fun (s : Finset (Closure.Rule Bool)) => s.card) hx
+          have hone : ({r1} : Finset (Closure.Rule Bool)).card = 1 :=
+            card_singleton r1
+          have hfin :
+            (Rgood.filter (fun t => t.head = true)).card = 1 :=
+            Eq.trans heq hone
+          exact Eq.le hfin
     )
-
 
 -- ---------- 悪い例：UniqueChild も UC も成り立たない ----------
 
 example : ¬ Twostem.UniqueChild (α:=Bool) Rbad := by
   intro hUC
-  -- r1, r3 ∈ Rbad
   have hr1 : r1 ∈ Rbad :=
     (mem_insert).2 (Or.inr ((mem_singleton).2 rfl))
   have hr3 : r3 ∈ Rbad :=
     (mem_insert).2 (Or.inl rfl)
-  -- head が同じ
   have hhead : r1.head = r3.head := rfl
-  -- UniqueChild なら r1=r3 だが、prem が違うので矛盾
   have h_eq : r1 = r3 := hUC hr1 hr3 hhead
-  -- prem を取り出して矛盾
   have hprem : r1.prem = r3.prem := congrArg (fun (t : Closure.Rule Bool) => t.prem) h_eq
-  -- ∅ = {false} は成り立たない
   have hneq : (∅ : Finset Bool) ≠ ({false} : Finset Bool) := by
-    intro h; -- 0 ≠ 1 の濃度で矛盾にしてもOK
-    -- 元素 false のメンバーシップで対立
+    intro h
     have : false ∈ (∅ : Finset Bool) := by
-      -- あり得ない
-      exact insert_eq_self.mp (id (Eq.symm hprem))
-
-    -- 実際は簡単に card でも良いが、上は冗長なので書き換え：
+      rw [h]; exact mem_singleton_self false
     exact (List.mem_nil_iff false).mp this
-  -- ところが r1.prem=∅, r3.prem={false}
-  -- hprem で等しいと言ってしまっているので矛盾
   exact hneq hprem
 
 
 example : ¬ Twostem.UC (α:=Bool) Rbad := by
   intro hUC
-  -- a=true のとき、filter には r1 と r3 の両方が入る
   have hr1 : r1 ∈ Rbad.filter (fun t => t.head = true) := by
     have hR : r1 ∈ Rbad :=
       (mem_insert).2 (Or.inr ((mem_singleton).2 rfl))
@@ -1180,337 +1104,37 @@ example : ¬ Twostem.UC (α:=Bool) Rbad := by
     have hR : r3 ∈ Rbad := (mem_insert).2 (Or.inl rfl)
     have : r3 ∈ Rbad ∧ r3.head = true := And.intro hR rfl
     exact (mem_filter).2 this
-  -- r1 ≠ r3
   have hneq : r1 ≠ r3 := by
     intro h
-    -- prem を比べれば矛盾
     have : r1.prem = r3.prem := congrArg (fun (t : Closure.Rule Bool) => t.prem) h
-    -- ∅ ≠ {false}
-    have : (∅ : Finset Bool) = ({false} : Finset Bool) := by
-      -- r1.prem=∅, r3.prem={false} なので上に等しいはずはない
-      -- ここは rfl を両側に流し込むイメージ
-      exact this
-    -- 実際は上の行は成立しないので False
-    -- 手短に：
-    simp_all only [mem_filter, mem_Rbad_iff, or_self, true_and]
-    contradiction
+    have : (∅ : Finset Bool) = ({false} : Finset Bool) := this
+    have : false ∈ (∅ : Finset Bool) := by
+      rw [this]; exact mem_singleton_self false
+    exact (List.mem_nil_iff false).mp this
 
-  -- {r1,r3} ⊆ filter → card ≥ 2
   have hsubset : insert r3 ({r1} : Finset (Closure.Rule Bool))
                   ⊆ Rbad.filter (fun t => t.head = true) := by
     intro x hx
     have hx' : x = r3 ∨ x ∈ ({r1} : Finset (Closure.Rule Bool)) := (mem_insert).1 hx
     cases hx' with
-    | inl hx3 =>
-        cases hx3; exact hr3
+    | inl hx3 => cases hx3; exact hr3
     | inr hx1 =>
         have : x = r1 := (mem_singleton).1 hx1
         cases this; exact hr1
-  -- card {r1,r3} = 2
   have hpair : (insert r3 ({r1} : Finset (Closure.Rule Bool))).card = 2 := by
     have hnot : r3 ∉ ({r1} : Finset (Closure.Rule Bool)) := by
       intro hx; apply hneq; exact (mem_singleton).1 hx |>.symm
-    -- card_insert_of_notMem
     have hbase : ({r1} : Finset (Closure.Rule Bool)).card = 1 := card_singleton r1
     have : (insert r3 ({r1} : Finset (Closure.Rule Bool))).card
               = ({r1} : Finset (Closure.Rule Bool)).card + 1 :=
       card_insert_of_notMem hnot
-    -- 1 + 1 = 2 なので 2
-    -- ここは算術を省略せずに書くなら：
-    -- rewrite hbase, then Nat.succ
-    -- ただし trans で十分
-    exact Eq.trans this rfl
-  -- card の単調性
+    rw [hbase] at this
+    exact this
   have hge2 : 2 ≤ (Rbad.filter (fun t => t.head = true)).card := by
-    sorry      -- 2 ≤ card {r1,r3}
+    calc 2 = (insert r3 ({r1} : Finset (Closure.Rule Bool))).card := hpair.symm
+         _ ≤ (Rbad.filter (fun t => t.head = true)).card := card_le_card hsubset
 
-  -- しかし UC は ≤ 1 を要求
-  have hle1 : (Rbad.filter (fun t => t.head = true)).card ≤ 1 :=
-    hUC true
-  simp_all only [mem_filter, mem_Rbad_iff, or_false, true_and, or_true, ne_eq]
-  omega
-
-end TestUC
-
-
--- サンプル規則
-def r1 : Closure.Rule Bool := { head := true,  prem := (∅ : Finset Bool) }
-def r2 : Closure.Rule Bool := { head := false, prem := (∅ : Finset Bool) }
-def r3 : Closure.Rule Bool := { head := true,  prem := ({false} : Finset Bool) }
-
--- 良い例：head がユニーク（true と false）
-noncomputable def Rgood : Finset (Closure.Rule Bool) := {r1, r2}
-
--- 悪い例：head が衝突（どちらも true）
-noncomputable  def Rbad  : Finset (Closure.Rule Bool) := {r1, r3}
-
-@[simp] lemma mem_Rgood_iff {x : Closure.Rule Bool} :
-    x ∈ Rgood ↔ x = r1 ∨ x = r2 := by
-  -- {a,b} のメンバ判定
-  --change x ∈ insert r2 ({r1} : Finset (Closure.Rule Bool)) ↔ _
-  constructor
-  · intro hx
-    have hx' : x = r2 ∨ x ∈ ({r1} : Finset (Closure.Rule Bool)) := by
-      sorry
-    cases hx' with
-    | inl hx2 =>
-        left;
-        sorry
-    | inr hx1 =>
-        have hxeq : x = r1 := (mem_singleton).1 hx1
-        right;
-        sorry
-  · intro h
-    cases h with
-    | inl hx1 =>
-        cases hx1;
-        sorry
-    | inr hx2 =>
-        cases hx2
-        have : r1 ∈ ({r1} : Finset (Closure.Rule Bool)) := by
-          exact (mem_singleton).2 rfl
-        sorry
-@[simp] lemma mem_Rbad_iff {x : Closure.Rule Bool} :
-    x ∈ Rbad ↔ x = r1 ∨ x = r3 := by
-  constructor
-  · intro hx
-    have hx' : x = r3 ∨ x ∈ ({r1} : Finset (Closure.Rule Bool)) := by
-      sorry
-    simp_all only [mem_singleton]
-    cases hx' with
-    | inl h =>
-      subst h
-      simp_all only [or_true]
-    | inr h_1 =>
-      subst h_1
-      simp_all only [true_or]
-
-  · intro h
-    cases h with
-    | inl hx3 =>
-        cases hx3;
-        sorry
-    | inr hx1 =>
-        cases hx1
-        have : r1 ∈ ({r1} : Finset (Closure.Rule Bool)) := by
-          exact (mem_singleton).2 rfl
-        apply (mem_insert).2
-        simp_all only [mem_singleton, or_true]
-
-
--- ============ 検証1：一般形（.mp / .mpr がそのまま使える） ============
-section general
-
-variable {α : Type*} [DecidableEq α] [Fintype α] [LinearOrder α]
-variable [DecidableEq (Closure.Rule α)]
-variable {R : Finset (Closure.Rule α)}
-
-example (h : Twostem.UniqueChild (α:=α) R) :
-    Twostem.UC (α:=α) R :=
-  (Twostem.UniqueChild_iff_UC (α:=α) R).mp h
-
-example (h : Twostem.UC (α:=α) R) :
-    Twostem.UniqueChild (α:=α) R :=
-  (Twostem.UniqueChild_iff_UC (α:=α) R).mpr h
-
-end general
-
--- ============ 検証2：良い例で UC も UniqueChild も成り立つ ============
-example : Twostem.UC (α:=Bool) Rgood := by
-  intro a
-  -- a = true / false の場合分け
-  cases a with
-  | false =>
-      -- head=false を持つのは r2 だけ → filter = {r2} → card ≤ 1
-      have hx :
-        (Rgood.filter (fun t => t.head = false))
-          = ({r2} : Finset (Closure.Rule Bool)) := by
-        -- 外延同値で示す
-        apply ext
-        intro x
-        constructor
-        · intro hxmem
-          -- x∈Rgood ∧ x.head=false
-          have hR : x ∈ Rgood := (mem_filter).1 hxmem |>.1
-          have hH : x.head = false := (mem_filter).1 hxmem |>.2
-          -- Rgood の場合分け
-          have hx' : x = r1 ∨ x = r2 := (by
-            have := (mem_Rgood_iff).mp hR; exact this)
-          cases hx' with
-          | inl h1 =>
-              -- r1.head=true なので矛盾 → こちらは出ない
-              have : r1.head = true := rfl
-              cases h1
-              -- hH : x.head = false と矛盾から False → 何でも示せる
-              cases hH
-          | inr h2 =>
-              -- x=r2 なので {r2} に入る
-              cases h2
-              exact (mem_singleton).2 rfl
-        · intro hxmem
-          -- 逆向き：{r2} ⊆ filter …
-          have hx2 : x = r2 := (mem_singleton).1 hxmem
-          -- x=r2 は Rgood のメンバ、かつ head=false
-          have hR2 : r2 ∈ Rgood := (mem_insert).2 (Or.inr ((mem_singleton).2 rfl))
-          -- filter の条件を満たす
-          have : r2 ∈ Rgood ∧ r2.head = false := by
-            apply And.intro
-            · exact hR2
-            · subst hx2
-              simp_all only [mem_Rgood_iff, or_true, mem_singleton]
-              rfl
-          -- 目標へ
-          cases hx2
-          exact (mem_filter).2 this
-      -- filter の濃度が 1 以下
-      -- ここでは `card {r2} = 1` と `Nat.le_refl 1` から従う
-      have hcard : (Rgood.filter (fun t => t.head = false)).card ≤ 1 := by
-        have : (Rgood.filter (fun t => t.head = false)).card
-                = ({r2} : Finset (Closure.Rule Bool)).card := by
-          exact congrArg card hx
-           -- card {r2} = 1
-        have : ({r2} : Finset (Closure.Rule Bool)).card ≤ 1 := by
-          -- 単集合の濃度
-          exact (by
-            -- card_singleton = 1, よって ≤ 1
-            have : ({r2} : Finset (Closure.Rule Bool)).card = 1 := by
-              exact card_singleton r2
-            -- 1 ≤ 1
-            exact (Eq.le this))
-        -- 置換
-        (expose_names; exact Nat.le_of_eq this_1)
-      -- a=false の結論
-      exact hcard
-  | true  =>
-      -- 同様に head=true を持つのは r1 だけ
-      have hx :
-        (Rgood.filter (fun t => t.head = true))
-          = ({r1} : Finset (Closure.Rule Bool)) := by
-        apply ext; intro x; constructor
-        · intro hxmem
-          have hR : x ∈ Rgood := (mem_filter).1 hxmem |>.1
-          have hH : x.head = true := (mem_filter).1 hxmem |>.2
-          have hx' : x = r1 ∨ x = r2 := (by
-            have := (mem_Rgood_iff).mp hR; exact this)
-          cases hx' with
-          | inl h1 =>
-              cases h1
-              exact (mem_singleton).2 rfl
-          | inr h2 =>
-              cases h2
-              -- r2.head=false と hH が矛盾
-              cases hH
-        · intro hxmem
-          have hx1 : x = r1 := (mem_singleton).1 hxmem
-          have hR1 : r1 ∈ Rgood := by
-            subst hx1
-            simp_all only [mem_singleton, mem_Rgood_iff, true_or]
-          have : r1 ∈ Rgood ∧ r1.head = true := And.intro hR1 rfl
-          cases hx1
-          exact (mem_filter).2 this
-      have hcard : (Rgood.filter (fun t => t.head = true)).card ≤ 1 := by
-        have : (Rgood.filter (fun t => t.head = true)).card
-                = ({r1} : Finset (Closure.Rule Bool)).card := by
-          exact congrArg card hx
-        have : ({r1} : Finset (Closure.Rule Bool)).card ≤ 1 := by
-          have : ({r1} : Finset (Closure.Rule Bool)).card = 1 := by
-            exact card_singleton r1
-          exact (Eq.le this)
-        (expose_names; exact Nat.le_of_eq this_1)
-      exact hcard
-
--- UniqueChild も成り立つ（良い例）
-example : Twostem.UniqueChild (α:=Bool) Rgood := by
-  apply (Twostem.UniqueChild_iff_UC (α:=Bool) Rgood).mpr
-  sorry
-
--- ============ 検証3：悪い例では両方ダメ ============
-example : ¬ Twostem.UniqueChild (α:=Bool) Rbad := by
-  -- 反例として t₁=r1, t₂=r3 を当てはめる
-  intro hUC
-  -- r1, r3 はどちらも Rbad の要素
-  have hr1 : r1 ∈ Rbad := by
-    apply (mem_insert).2
-    exact Or.symm (Or.inr rfl)
-  have hr3 : r3 ∈ Rbad := by
-    apply (mem_insert).2
-    simp_all only [mem_Rbad_iff, true_or, mem_singleton, or_true]
-  -- かつ head はどちらも true
-  have hhead : r1.head = r3.head := by rfl
-  -- UniqueChild の結論は r1 = r3 だが、prem が違うので不等式
-  have : r1 = r3 := hUC hr1 hr3 hhead
-  -- 明らかに異なる
-  sorry --Unique Childに反してそう。
-
-example : ¬ Twostem.UC (α:=Bool) Rbad := by
-  intro hUC
-  -- a=true で filter に r1 と r3 の 2つが入るので card ≤ 1 に反する
-  -- r1∈filter
-  have hr1 : r1 ∈ Rbad.filter (fun t => t.head = true) := by
-    have hR : r1 ∈ Rbad := by
-      apply (mem_insert).2
-      exact Or.symm (Or.inr rfl)
-    have : r1 ∈ Rbad ∧ r1.head = true := And.intro hR rfl
-    exact (mem_filter).2 this
-  -- r3∈filter
-  have hr3 : r3 ∈ Rbad.filter (fun t => t.head = true) := by
-    have hR : r3 ∈ Rbad := by
-      simp_all only [mem_filter, mem_Rbad_iff, true_or, true_and, or_true]
-    have : r3 ∈ Rbad ∧ r3.head = true := And.intro hR rfl
-    exact (mem_filter).2 this
-  -- r1≠r3
-  have hneq : r1 ≠ r3 := by
-    -- head は同じだが prem が違う
-    intro h;
-    sorry
-  -- {r1,r3} ⊆ filter → card ≥ 2 → ≤1 と矛盾
-  have hsubset : insert r3 ({r1} : Finset (Closure.Rule Bool))
-                  ⊆ Rbad.filter (fun t => t.head = true) := by
-    intro x hx
-    have hx' : x = r3 ∨ x ∈ ({r1} : Finset (Closure.Rule Bool)) := (mem_insert).1 hx
-    cases hx' with
-    | inl hx3 =>
-        cases hx3; exact hr3
-    | inr hx1 =>
-        have : x = r1 := (mem_singleton).1 hx1
-        cases this; exact hr1
-  -- card {r1,r3} = 2
-  have hpair : (insert r3 ({r1} : Finset (Closure.Rule Bool))).card = 2 := by
-    -- card_insert_of_notMem
-    have hnot : r3 ∉ ({r1} : Finset (Closure.Rule Bool)) := by
-      -- r3∈{r1} ↔ r3=r1 に反する
-      intro h; exact hneq ((mem_singleton).1 h).symm
-    have : ({r1} : Finset (Closure.Rule Bool)).card = 1 := card_singleton r1
-    -- (1 + 1) = 2
-    -- card_insert_of_notMem : card (insert a s) = card s + 1
-    have : (insert r3 ({r1} : Finset (Closure.Rule Bool))).card
-              = ({r1} : Finset (Closure.Rule Bool)).card + 1 :=
-      card_insert_of_notMem hnot
-    -- 置換
-    -- 1 + 1 = 2
-    -- （算術の変形は省略）
-    exact this.trans rfl
-  -- 単調性：subset → card_le_of_subset
-  have hge2 : 2 ≤ (Rbad.filter (fun t => t.head = true)).card := by
-    apply le_trans (by
-      -- 2 ≤ card {r1,r3}
-      -- ここは「card=2」から直ちに従う
-      have h2 : 2 ≤ (insert r3 ({r1} : Finset (Closure.Rule Bool))).card := by
-        -- card=2 → ≤ 2 は自明、従って 2 ≤ card
-        -- 直接：Nat.le_of_eq (Eq.symm hpair)
-        exact Nat.le_of_eq (Eq.symm hpair)
-      exact h2)
-    exact card_le_card hsubset
-  -- しかし UC は「この card ≤ 1」なので矛盾
-  have hle1 : (Rbad.filter (fun t => t.head = true)).card ≤ 1 := by
-    simp_all only [mem_filter, mem_Rbad_iff, or_false, true_and, or_true, ne_eq]
-    apply hUC
-  apply hneq
-  simp_all only
-  apply hneq
-  simp_all only
-  apply hneq
-  simp_all only
+  have hle1 : (Rbad.filter (fun t => t.head = true)).card ≤ 1 := hUC true
   omega
 
 end TestUC
