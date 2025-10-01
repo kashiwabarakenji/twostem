@@ -2471,10 +2471,6 @@ lemma all_steps_increase_if_last_increases
   -- 形式的には、k+d = N の置換は上で済んでいる（`rcases` で rfl を入れている）。
   exact hneq hEqFinal
 
-
-
-
-
 lemma iter2_stabilizes_at_card
   [DecidableEq α] [Fintype α] [LinearOrder α]
   (R : Finset (Rule α)) (I : Finset α) :
@@ -2482,84 +2478,124 @@ lemma iter2_stabilizes_at_card
   classical
   -- 反証法：動くなら 1 段でサイズが 1 増える。|α| 回までしか増えないので矛盾
   by_contra hneq
-  -- 可換群ではないので単純な card 比較で：
-  have : (iter2 R I (Fintype.card α)).card < (iter2 R I (Fintype.card α + 1)).card := by
-    -- applicable 非空 → ssubset（補題2）を使いたい。nonempty は nextHead? some でOK。
-    -- 場合分けでやるのが手堅い：
-    cases hnh : nextHead? R (iter2 R I (Fintype.card α)) with
-    | none   =>
-      simp [iter2, step2, hnh]
-      have h1 :
-          iter2 R I (Fintype.card α + 1)
-            = step2 R (iter2 R I (Fintype.card α)) := by
-        -- iter2 の定義：k+1 段は step2 による 1 ステップ
-        simp [iter2]
+  set N := Fintype.card α with hN
 
-      -- nextHead? = none なので step2 は据え置き
-      have h2 :
-          step2 R (iter2 R I (Fintype.card α))
-            = iter2 R I (Fintype.card α) := by
-        -- step2 の定義を nextHead? の分岐で評価
-        simp [step2, hnh]
+  -- まず、N 段目で nextHead? が none なら、その時点で凍結 ⇒ 矛盾
+  cases hnh : nextHead? R (iter2 R I N) with
+  | none =>
+      -- あなたが証明済みの補題（例）:
+      -- frozen_forever_of_none :
+      --   nextHead? R (iter2 R I k) = none → iter2 R I k = iter2 R I (k+1)
+      have hfreeze := frozen_forever_of_none (R:=R)   (h:=hnh)
+      apply hneq
+      have hstep_fixed : step2 R (iter2 R I N) = iter2 R I N := by
+        -- f^[1] x = f x を使って簡約
+        exact hfreeze 1
 
-      -- 合成して (card α + 1) 段 = (card α) 段
-      have hfix :
-          iter2 R I (Fintype.card α + 1)
-            = iter2 R I (Fintype.card α) :=
-        Eq.trans h1 h2
+      -- 定義より iter2 の (N+1) 段は step2 を 1 回適用したもの
+      have hfix : iter2 R I (N + 1) = iter2 R I N := by
+        simpa [iter2] using hstep_fixed
 
-      -- 向きを揃えて矛盾
-      have heq :
-          iter2 R I (Fintype.card α)
-            = iter2 R I (Fintype.card α + 1) :=
-        Eq.symm hfix
+      -- 目標は左右逆なので対称にして終了
+      exact hfix.symm
 
-      exact hneq heq
+  | some a =>
+      -- 「最後の一歩が変化するなら、その前の全ステップも変化する」
+      -- all_steps_increase_if_last_increases :
+      --   iter2 R I N ≠ iter2 R I (N+1) → ∀ k ≤ N, iter2 R I k ≠ iter2 R I (k+1)
+      have hall := all_steps_increase_if_last_increases (R:=R) (I:=I) (N:=N) hneq
+
+      -- 各段で「（k → k+1）は包含」：step2_superset を使う
+      -- step2_superset :
+      --   ∀ k, iter2 R I k ⊆ iter2 R I (k+1)
+      have hmono : ∀ k, iter2 R I k ⊆ iter2 R I (k+1) := by
+        intro k
+        let ss := step2_superset (R:=R) (I:=I)
+        have step2_superset_any : ∀ J : Finset α, J ⊆ step2 R J := by
+          intro J x hx
+          cases h : nextHead? R J with
+          | none =>
+              -- step2 R J = J
+              simpa [step2, h] using hx
+          | some a =>
+              -- step2 R J = insert a J
+              simp_all only [le_refl, not_false_eq_true, ne_eq, N]
+              rw [step2, h]
+              simp_all only [mem_insert, or_true]
+
+        -- 目標：iter2 R I k ⊆ iter2 R I (k+1)
+        intro x hx
+        have hx' : x ∈ step2 R (iter2 R I k) := by
+          exact step2_superset_any (iter2 R I k) hx
+        simpa [iter2] using hx'
 
 
-    | some a =>
-        have hss : iter2 R I (Fintype.card α) ⊂ iter2 R I (Fintype.card α + 1) := by
-          -- 直計算
-          have : iter2 R I (Fintype.card α + 1) =
-                  insert a (iter2 R I (Fintype.card α)) := by
-            simp [iter2, step2, hnh]
-          refine ⟨?sub, ?ne⟩
-          · intro x hx;
-            simp [this]
-            --let fm := Finset.mem_insert_of_mem _ hx
-            exact Or.symm (Or.intro_left (x = a) hx)
+      -- すると、0..N の各ステップで「厳密に増える」：card が毎回少なくとも +1
+      -- これを合算して、(N+1) 段目の card ≥ (0 段目の card) + (N+1) ≥ N+1
+      -- 一方、全て α の部分集合だから card ≤ |α| = N。矛盾。
+      have hstrict_each :
+        ∀ k ≤ N, (iter2 R I k).card < (iter2 R I (k+1)).card := by
+        intro k hk
+        -- 包含 & 不等号 ⇒ 真部分集合 ⇒ card は厳に増加
+        have hsubset : iter2 R I k ⊆ iter2 R I (k+1) := hmono k
+        have hne     : iter2 R I k ≠ iter2 R I (k+1) := hall k hk
+        have hss     : iter2 R I k ⊂ iter2 R I (k+1) := by
+          constructor
+          · exact hmono k
+          · intro h
+            apply hne
+            exact Subset.antisymm (hmono k) h
 
-          · have : a ∉ iter2 R I (Fintype.card α) := by
-              rcases nextHead?_spec_some (R:=R) (I:=iter2 R I (Fintype.card α)) (a:=a) hnh with ⟨haNot, _⟩
-              exact haNot
-            intro heq; have : a ∈ iter2 R I (Fintype.card α) := by
-              --let fm := Finset.mem_insert_self a
-              rename_i this0
-              have ha_ins : a ∈ insert a (iter2 R I (Fintype.card α)) :=
-                Finset.mem_insert_self a (iter2 R I (Fintype.card α))
-              -- 等式 this✝ を「メンバーシップ命題の等式」に持ち上げて書き換える
-              have hmem_eq :
-                  (a ∈ iter2 R I (Fintype.card α + 1))
-                    = (a ∈ insert a (iter2 R I (Fintype.card α))) :=
-                congrArg (fun s => a ∈ s) this0
-              -- 右辺が真なので、等式から左辺も真
-              have ha_in_next : a ∈ iter2 R I (Fintype.card α + 1) := by
-                simp_all only [mem_insert, or_false]
-              -- 包含 heq で N+1 段から N 段へ落とす
-              exact heq ha_in_next
-
-            (expose_names; exact this_2 this)
         exact Finset.card_lt_card hss
-  -- しかし |α| 回で |α| を超える増分は不可能
-  have hi2: (iter2 R I (Fintype.card α + 1)).card ≤ Fintype.card α := by
-    -- 常に I ⊆ α の元集合なので card ≤ |α|
-    exact Finset.card_le_univ _
-  sorry
 
+      -- これで「0..N の N+1 回の遷移」で毎回 card が 1 以上増える。
+      -- 帰納でまとめる：
+      have hsum :
+        (iter2 R I (N+1)).card ≥ (iter2 R I 0).card + (N+1) := by
+        -- 簡単な帰納（長くなるのでコンパクトに書きます）
+        -- base: k=0 は (iter2 1).card ≥ (iter2 0).card + 1
+        -- step: k → k+1 で一回分足す
+        -- ここでは `Nat.le_of_lt` と加法単調性で積み上げ
+        -- （詳しく書く場合は Nat.rec で k を 0..N まで回して積上げます）
+        -- 手短版：
+        have : ∀ k ≤ N, (iter2 R I (k+1)).card ≥ (iter2 R I 0).card + (k+1) := by
+          intro k hk
+          induction' k with k ih
+          · -- k=0
+            have hlt := hstrict_each 0 (Nat.zero_le _)
+            have hle := Nat.le_of_lt hlt
+            simp
+            exact hstrict_each 0 hk
+          · -- k+1
+            have hkle : k ≤ N := Nat.le_trans (Nat.le_succ k) hk
+            have ih' := ih hkle
+            search_proof
+            --have hlt := hstrict_each (k+1) (Nat.succ_le_of_lt (Nat.lt_of_le_of_lt hk (Nat.lt_succ_self _)))
+            have hle := Nat.le_of_lt hlt
+            -- (k+2) 段の card ≥ (k+1) 段の card + 1 ≥ (iter2 0).card + (k+1) + 1
+            calc
+              (iter2 R I (k+2)).card
+                ≥ (iter2 R I (k+1)).card + 1 := by
+                      -- (k+1 → k+2) で 1 増
+                      -- hstrict_each gives strict <, なので ≥ +1 は自明（Nat なので）
+                      have : (iter2 R I (k+1)).card < (iter2 R I (k+2)).card := hstrict_each (k+1) (Nat.succ_le_of_lt (Nat.lt_of_le_of_lt hk (Nat.lt_succ_self _)))
+                      exact Nat.succ_le_of_lt this
+            _ ≥ (iter2 R I 0).card + (k+1) + 1 := by exact Nat.add_le_add_right ih' 1
+            _ = (iter2 R I 0).card + (k+2) := by omega
+        -- これを k := N に適用
+        simpa using this N (Nat.le_refl _)
 
-
-
-
+      -- ところが (iter2 _ _ (N+1)) は α の有限部分集合なので card ≤ N
+      have hupper : (iter2 R I (N+1)).card ≤ N := by
+        simpa [hN] using Finset.card_le_univ (iter2 R I (N+1))
+      -- 下限 N+1 と上限 N の矛盾
+      have : N + 1 ≤ N := by
+        -- (iter2 0).card ≥ 0 を使えば `hsum` から N+1 ≤ card(N+1) ≤ N
+        have h0 : (iter2 R I 0).card ≥ 0 := Nat.zero_le _
+        have hsum' : (iter2 R I (N+1)).card ≥ 0 + (N+1) := by
+          simpa using (Nat.le_trans (Nat.add_le_add_left h0 _) hsum)
+        exact (le_trans hsum' hupper)
+      exact Nat.not_succ_le_self N this
 
 /-
 -- UC + Two-Stem：addedFamily への写像は witness ごとに高々1本（単射）
