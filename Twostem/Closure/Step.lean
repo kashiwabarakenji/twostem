@@ -72,7 +72,15 @@ private lemma closed_subset_iterate {α : Type*} [DecidableEq α]
         -- fires にいたなら、対応する規則 t を取り出して IsClosed を適用
         rcases Finset.mem_image.mp hfire with ⟨t, ht, rfl⟩
         rcases Finset.mem_filter.mp ht with ⟨hR, hprem⟩
-        have hpremJ : t.prem ⊆ J := hprem.trans ih
+        have hpremJ : t.prem ⊆ J := by
+          simp_all only [IsClosed, applicable, Finset.mem_filter, not_false_eq_true, and_self, step, fires, Finset.mem_union,
+             Finset.mem_image, false_or]
+          obtain ⟨w, h⟩ := ha
+          obtain ⟨left, right⟩ := hprem
+          intro x hx
+          apply ih
+          exact left hx
+
         exact hJ hR hpremJ
     -- もとの目標に戻す
 
@@ -113,7 +121,7 @@ lemma Step.cl_minimal (R : Finset (Rule α)) {I J : Finset α}
   exact hIter
 
 
-private lemma step_mono_n {α : Type*} [DecidableEq α] (R : Finset (Rule α)) (n : ℕ) :
+private lemma step_mono_n {α : Type*} [DecidableEq α][Fintype α] (R : Finset (Rule α)) (n : ℕ) :
   Monotone (Nat.iterate (step R) n) := by
   induction n with
   | zero =>
@@ -132,7 +140,7 @@ lemma step_subset {α : Type*} [DecidableEq α] (R : Finset (Rule α)) (X : Fins
   step R X ⊇ X := by
   simp [step]
 
-lemma iterate_subset {α : Type*} [DecidableEq α] (R : Finset (Rule α)) (I : Finset α) (n : ℕ) :
+lemma iterate_subset {α : Type*} [DecidableEq α] [Fintype α](R : Finset (Rule α)) (I : Finset α) (n : ℕ) :
   Nat.iterate (step R) n I ⊇ I := by
   induction n generalizing I with
   | zero =>

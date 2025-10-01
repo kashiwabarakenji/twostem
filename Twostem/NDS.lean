@@ -5,8 +5,6 @@ import Mathlib.Algebra.BigOperators.Finsupp.Basic
 import Twostem.Closure.Abstract
 import Twostem.Closure.Core
 import Twostem.Closure.Sync
---import Twostem.Rules
---import Twostem.Closure
 import LeanCopilot
 
 namespace Twostem
@@ -44,10 +42,10 @@ lemma syncCl_mem_Family {R : Finset (Rule α)} {I : Finset α} [DecidablePred (f
   have hclosed : IsClosed R (syncCl R I) := syncCl_closed (α:=α) (R:=R) (I:=I)
   simpa [mem_Family] using hclosed
 
-/-- `syncCl` は最小閉包：任意の閉集合 `J` で `I ⊆ J` なら `syncCl R I ⊆ J` -/
-lemma syncCl_le_of_closed {R : Finset (Rule α)} {I J : Finset α}
-  (hIJ : I ⊆ J) (hJ : IsClosed R J) :
-  syncCl R I ⊆ J :=
-  syncCl_subset_of_closed (α:=α) (R:=R) (I:=I) (J:=J) hIJ hJ
+/- `syncCl` は最小閉包：任意の閉集合 `J` で `I ⊆ J` なら `syncCl R I ⊆ J` -/
+--lemma syncCl_le_of_closed {R : Finset (Rule α)} {I J : Finset α}
+--  (hIJ : I ⊆ J) (hJ : IsClosed R J) :
+--  syncCl R I ⊆ J := by
+--    exact syncCl_min R hIJ hJ
 
 end Twostem

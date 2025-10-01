@@ -185,16 +185,5 @@ lemma mem_closure_iff_deriv_from_base
         exact hClosed ht hPremSub
 -/
 
-/-- 閉包は単調：I⊆Jなら cl[R] I ⊆ cl[R] J -/
-axiom closure_mono :
-  ∀ {R : Finset (Rule α)} {I J : Finset α}, I ⊆ J → syncCl R I ⊆ syncCl R J
-
-/-- 閉包は包含：I ⊆ cl[R] I -/
-axiom subset_closure :
-  ∀ {R : Finset (Rule α)} {I : Finset α}, I ⊆ syncCl R I
-
-/-- 閉包は冪等：cl[R] (cl[R] I) = cl[R] I -/
-axiom closure_idem :
-  ∀ {R : Finset (Rule α)} {I : Finset α}, syncCl R (syncCl R I) = syncCl R I
 
 end Twostem
