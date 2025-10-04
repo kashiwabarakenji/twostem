@@ -172,7 +172,7 @@ def NoSwap (R' : Finset (Rule α)) : Prop :=
   ∀ X Y, stepPar R' X = stepPar R' Y → ((X \ Y) = ∅ ∨ (Y \ X) = ∅)
 
 /-! 補助：`stepPar R X = stepPar R Y` のとき、`X \ Y ⊆ fires R Y` / `Y \ X ⊆ fires R X` -/
-private lemma diff_subset_fires_right
+lemma diff_subset_fires_right
   {R : Finset (Rule α)} {X Y : Finset α}
   (hstep : stepPar R X = stepPar R Y) :
   (X \ Y) ⊆ fires R Y := by
@@ -191,7 +191,7 @@ private lemma diff_subset_fires_right
   | inl hInY  => exact (haNY hInY).elim
   | inr hInFY => exact hInFY
 
-private lemma diff_subset_fires_left
+lemma diff_subset_fires_left
   {R : Finset (Rule α)} {X Y : Finset α}
   (hstep : stepPar R X = stepPar R Y) :
   (Y \ X) ⊆ fires R X := by
