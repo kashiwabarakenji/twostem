@@ -963,4 +963,201 @@ lemma cause_exists_on_right_of_step_eq
   have hrPr : r.prem ⊆ Y := (Finset.mem_filter.mp hrApp).2.1
   exact ⟨r, hrR, hrPr, hrHead⟩
 
+
+omit [Fintype α] [LinearOrder α] in
+private lemma exists_enter_before
+  (R : Finset (Rule α)) (I : Finset α) (x : α) :
+  ∀ N, x ∈ parIter R I N → x ∉ parIter R I 0 →
+    ∃ k, k < N ∧ x ∉ parIter R I k ∧ x ∈ parIter R I (k+1) := by
+  intro N
+  induction' N with N ih
+  · -- N = 0 は矛盾
+    intro hxN hx0
+    -- hxN : x ∈ parIter R I 0, hx0 : x ∉ parIter R I 0
+    exact (hx0 hxN).elim
+  · -- N+1
+    intro hxN1 hx0
+    -- 場合分け：前段 N にもう入っているか？
+    by_cases hxN : x ∈ parIter R I N
+    · -- 既に N で入っているなら、N に対して帰納法を適用
+      have ⟨k, hk_lt, hk_notin, hk_in⟩ := ih hxN hx0
+      -- k < N < N+1
+      have hk' : k < N.succ := Nat.lt_trans hk_lt (Nat.lt_succ_self N)
+      exact ⟨k, hk', hk_notin, hk_in⟩
+    · -- N では入っていないが N+1 では入っている → ちょうど N→N+1 で入った
+      exact ⟨N, Nat.lt_succ_self N, by exact hxN, by
+        -- parIter R I (N+1) そのもの
+        exact hxN1⟩
+
+
+
+--omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+/- メイン：閉包に入るが初期にない要素 x は、どこかの段 k で fires によって入る。
+   そのとき head = x の規則 r と prem⊆(基底) が取れる。 -/
+lemma element_has_rule_in_closure [Fintype α] [DecidableEq α]
+  (R : Finset (Rule α)) (I : Finset α) (x : α)
+  (hx : x ∈ syncCl R I) (hx_not_init : x ∉ I) :
+  ∃ (k : ℕ) (r : Rule α),
+    k < Fintype.card α ∧
+    r ∈ R ∧
+    r.head = x ∧
+    x ∉ parIter R I k ∧
+    x ∈ parIter R I (k+1) ∧
+    r.prem ⊆ parIter R I k := by
+  classical
+  -- 記号：N = |α|
+  set N := Fintype.card α
+  -- hx は syncCl = parIter … N への所属
+  have hxN : x ∈ parIter R I N := by
+    -- syncCl の定義が parIter … N なら定義展開で一致
+    -- （syncCl をそう定義している前提です）
+    exact hx
+  -- 初期にない：parIter 0 = I
+  have hx0 : x ∉ parIter R I 0 := by
+    intro hx0'
+    -- parIter R I 0 = I
+    have hxI : x ∈ I := by
+      -- `parIter R I 0` を `I` に書き換え
+      -- parIter の定義より rfl
+      change x ∈ I at hx0'
+      exact hx0'
+    exact hx_not_init hxI
+  -- まず「ちょうどこの段で入る」k を取る
+  obtain ⟨k, hk_ltN, hk_notin, hk_in⟩ :=
+    exists_enter_before (R:=R) (I:=I) (x:=x) N hxN hx0
+  -- parIter (k+1) = stepPar R (parIter k)
+  have hx_step : x ∈ stepPar R (parIter R I k) := by
+    -- parIter の定義をそのまま使う
+    -- hk_in : x ∈ parIter R I (k+1)
+    -- 目標を書き換え
+    change x ∈ stepPar R (parIter R I k) at hk_in
+    exact hk_in
+  -- 左側にはいないので、右側 fires にいる
+  have hx_fires : x ∈ fires R (parIter R I k) := by
+    -- x ∈ (parIter k) ∪ fires … で、x ∉ parIter k だから fires 側
+    have := Finset.mem_union.mp hx_step
+    cases this with
+    | inl hxL => exact False.elim (hk_notin hxL)
+    | inr hxR => exact hxR
+  -- fires = (applicable …).image head から、規則 r を取り出し
+  rcases Finset.mem_image.mp hx_fires with ⟨r, hr_app, hr_head⟩
+  -- applicable の分解：r ∈ R ∧ prem ⊆ parIter … k ∧ head ∉ parIter … k
+  have hr_split : r ∈ R ∧ r.prem ⊆ parIter R I k ∧ r.head ∉ parIter R I k :=
+    Finset.mem_filter.mp hr_app
+  -- 目的のタプルを組み立てて終了
+  refine ⟨k, r, hk_ltN, ?hr_inR, ?hr_head_eq, hk_notin, ?hx_in_next, ?hPrem⟩
+  · -- r ∈ R
+    exact hr_split.1
+  · -- r.head = x
+    exact hr_head
+  · -- x ∈ parIter R I (k+1)
+    -- 先ほどの hk_in をそのまま返す（表記戻し）
+    exact hk_in
+  · -- r.prem ⊆ parIter R I k
+    exact hr_split.2.1
+
+--omit [DecidableEq α] [Fintype α] [LinearOrder α] in
+--次のweak_liftingの証明で用いられる。
+/- UC を使う背理補題：もし `closure (R.erase t) (B∪S)` だけで `t.head` が出るなら、
+    「t が first violation」という事実に矛盾する。 -/
+
+
+
+--ここをChatGPTに書いてもらったら10個ぐらいsorryが残った。THikingじゃなかったからかも。
+--UCとUnique Childの変換もうまくいかないし、最後までうまくいきそうにないので、一旦リセットすることにした。
+
+
+
+
+omit [LinearOrder α] in
+lemma head_not_in_syncCl_of_erase_witness[LinearOrder α] [Fintype α] [DecidableEq α]
+  {ρ : RuleOrder α} {R : Finset (Rule α)} {B S : Finset α} {t : Rule α}
+  (hUC : UniqueChild α R) (ht : t ∈ R)
+  (hW : isWitness ρ R B S t) :
+  t.head ∉ syncCl (R.erase t) (B ∪ S) := by
+  classical
+  -- Witness から初期不在
+  have hVI : violates R t (B ∪ S) := (hW.2).1
+  have hHeadNotInit : t.head ∉ (B ∪ S) := hVI.2.2
+  -- もし閉包にあれば，原因規則 r ∈ R.erase t で r.head = t.head
+  by_contra hIn
+  rcases element_has_rule_in_closure (R.erase t) (B ∪ S) t.head hIn hHeadNotInit with
+    ⟨k, r, _, hrInErase, hrHead, _, _, _⟩
+  -- r ∈ R.erase t ⇒ r ∈ R ∧ r ≠ t
+  have hrR : r ∈ R := by
+    have : r ∈ R.erase t := hrInErase
+    exact Finset.mem_of_mem_erase this
+  have hrNe : r ≠ t := by
+    have : r ∈ R.erase t := hrInErase
+    exact (Finset.ne_of_mem_erase this)
+  -- UC で head が同じなら r = t，矛盾
+  have : r = t := hUC hrR ht (by exact hrHead)
+  exact hrNe this
+
+
+lemma head_from_Rerase_contra_first
+  [DecidableEq α] [Fintype α] [LinearOrder α]
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (hUC : UC R)
+  (B S : Finset α) (t : Rule α)
+  (hFirst : violatesFirst ρ R t (B ∪ S))
+  (hHead  : t.head ∈ syncCl (R.erase t) (B ∪ S)) : False := by
+  classical
+  -- まず violatesFirst の中身を展開
+  rcases hFirst with ⟨hViol, _hMin⟩
+  rcases hViol with ⟨htR, htPrem, htHeadNot⟩
+  -- t.head は初期集合には入っていない
+  have h_not_init : t.head ∉ (B ∪ S) := htHeadNot
+
+  obtain ⟨k, r, _hk_lt, hr_in, hr_head, _hx_not_before, _hx_in_after, _hr_prem⟩ :
+      ∃ (k : ℕ) (r : Rule α),
+        k < Fintype.card α ∧
+        r ∈ (R.erase t) ∧
+        r.head = t.head ∧
+        t.head ∉ parIter (R.erase t) (B ∪ S) k ∧
+        t.head ∈  parIter (R.erase t) (B ∪ S) (k+1) ∧
+        r.prem ⊆ parIter (R.erase t) (B ∪ S) k := by
+    exact element_has_rule_in_closure (R:=R.erase t) (I:=B ∪ S) (x:=t.head) hHead h_not_init
+
+  -- r ∈ erase t なので r ≠ t かつ r ∈ R
+  rcases Finset.mem_erase.mp hr_in with ⟨r_ne_t, hrR⟩
+
+  -- UC（各 head ごとに R.filter (head=…) の card ≤ 1）から矛盾を作る
+  -- 対象となるフィルタ
+  set H : Finset (Rule α) := R.filter (fun s => s.head = t.head) with hH
+
+  have ht_memH : t ∈ H := by
+    -- t は R にあり、head=t.head は自明なので filter に入る
+    apply Finset.mem_filter.mpr
+    exact ⟨htR, by simp⟩
+
+  have hr_memH : r ∈ H := by
+    apply Finset.mem_filter.mpr
+    exact ⟨hrR, by simp [hr_head]⟩
+
+  -- H は空でなく（t が入っている）、UC により card ≤ 1
+  have hH_pos : 0 < H.card := Finset.card_pos.mpr ⟨t, ht_memH⟩
+  have hH_le1 : H.card ≤ 1 := by
+    -- UC の定義：∀ a, (R.filter (fun t => t.head = a)).card ≤ 1
+    simpa [hH] using hUC t.head
+
+  -- よって H.card = 1
+  have hH_card1 : H.card = 1 := by
+    apply Nat.le_antisymm hH_le1
+    exact hH_pos
+
+  -- card=1 から H = {u} for some u
+  rcases Finset.card_eq_one.mp hH_card1 with ⟨u, hHu⟩
+
+  -- すると t ∈ {u} かつ r ∈ {u} なので t = u かつ r = u、ゆえに t = r
+  have ht_eq_u : t = u := by
+    have : t ∈ ({u} : Finset (Rule α)) := by simpa [hHu] using ht_memH
+    simpa [Finset.mem_singleton] using this
+  have hr_eq_u : r = u := by
+    have : r ∈ ({u} : Finset (Rule α)) := by simpa [hHu] using hr_memH
+    simpa [Finset.mem_singleton] using this
+
+  have : r = t := by simp [ht_eq_u, hr_eq_u]
+  exact r_ne_t this
+
+
 end Twostem

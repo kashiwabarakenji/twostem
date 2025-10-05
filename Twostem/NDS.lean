@@ -48,4 +48,28 @@ lemma syncCl_mem_Family {R : Finset (Rule α)} {I : Finset α} [DecidablePred (f
 --  syncCl R I ⊆ J := by
 --    exact syncCl_min R hIJ hJ
 
+/-
+lemma NDS_le_zero_main_ARoute
+  [DecidableEq α] [Fintype α] [LinearOrder α]
+  (ρ : RuleOrder α) {R : Finset (Rule α)}
+  (hUC  : UniqueChild α R)
+  (hNTF : ∀ t : Rule α, NoTwoFreshHeads (R.erase t))
+  (hNS  : ∀ t : Rule α, NoSwap (R.erase t))
+  (hA   : ∀ t : Rule α, OnlyTLastDiff ρ R t) :
+  NDS R ≤ 0 := by
+  -- 「任意の B,S₁,S₂,t で一意」を供給すれば完了
+  refine NDS_le_zero_of_unique_S (ρ:=ρ) (R:=R) ?uniq
+  intro B S₁ S₂ t hD1 hD2 hW1 hW2 hEq
+  -- Aルートの3条件をその t に適用
+  have hNTF_t : NoTwoFreshHeads (R.erase t) := hNTF t
+  have hNS_t  : NoSwap (R.erase t)          := hNS t
+  have hA_t   : OnlyTLastDiff ρ R t         := hA  t
+  -- 既存の主力補題で S₁=S₂
+  exact
+    multiplicity_le_one_addedFamily_noA
+      (ρ:=ρ) (R:=R) (t:=t)
+      hUC hNTF_t hNS_t hA_t
+      hD1 hD2 hW1 hW2 hEq
+-/
+
 end Twostem

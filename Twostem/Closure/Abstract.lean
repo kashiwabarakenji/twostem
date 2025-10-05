@@ -289,6 +289,23 @@ lemma closure_minimal (O : Operator α) {s J : Finset α}
     -- cast along rfl (explicit)
     exact hx
   exact stepInc (Fintype.card α) hx'
+
+--/***********************
+-- * 0. TwoStem / UC / NoEmpty
+-- ***********************/
+--こちらは、Rに対する条件。TwoStemという個別のルールに対する条件もある。
+def TwoStemR (R : Finset (Rule α)) : Prop :=
+  ∀ t ∈ R, (t.prem.card ≤ 2)
+
+
+
+--非空前提。Ruleを一般のステムとして定義しているので、自動的には満たされない。
+def NoEmptyPremise (R : Finset (Rule α)) : Prop :=
+  ∀ t ∈ R, t.prem ≠ ∅
+
+
+
+
 /-
 omit [DecidableEq α] in
 -- 補題: step が C で安定しないなら、k と k+1 の反復は異なる

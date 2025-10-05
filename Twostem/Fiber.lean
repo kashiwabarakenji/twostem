@@ -4,7 +4,7 @@ import Mathlib.Data.Fintype.Basic
 import Mathlib.Algebra.BigOperators.Finsupp.Basic
 --import Mathlib.Data.Finset.Lattice  -- for powerset / biUnion tools
 --import Twostem.Rules
---import Twostem.Closure
+import Twostem.Closure.Core
 import Twostem.NDS
 
 namespace Twostem
@@ -15,9 +15,7 @@ open Closure
 
 variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]
 
-/-- 自由座標（台は univ を想定） -/
-def FreeOf (Rep : Finset α) : Finset α :=
-  (univ : Finset α) \ Rep
+
 
 /-- `fiber R Rep B`：閉集合族のうち `I ∩ Rep = B` を満たすもの全体 -/
 def fiber (R : Finset (Rule α)) [DecidablePred (IsClosed R)] (Rep B : Finset α) : Finset (Finset α) :=
