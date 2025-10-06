@@ -7,6 +7,9 @@ import Mathlib.Algebra.BigOperators.Finsupp.Basic
 import Twostem.Closure.Core
 import Twostem.NDS
 
+--このファイルはレガシーであまり直接利用できない。
+--現在はグローバル路線であり、ここで採用されてる因数分解路線ではない。
+
 namespace Twostem
 
 open scoped BigOperators
@@ -202,34 +205,7 @@ lemma card_split_inter_rep_free
   exact Eq.trans hZ
     (Int.natCast_add ((I ∩ Rep).card) ((I ∩ FreeOf Rep).card))
 
-/-
-  have hnat :
-      I.card = (I ∩ Rep).card + (I ∩ FreeOf Rep).card := by
-    -- (s ∪ t).card + (s ∩ t).card = s.card + t.card
-      have hsum :=
-        Finset.card_union_add_card_inter (I ∩ Rep) (I ∩ FreeOf Rep)
-      -- 交わりは空（⇒ 濃度 0）
-      have hinter_zero :
-          ((I ∩ Rep) ∩ (I ∩ FreeOf Rep)).card = 0 := by
-        apply Finset.card_eq_zero.mpr
-        apply Finset.eq_empty_iff_forall_notMem.mpr
-        intro x hx
-        rcases Finset.mem_inter.mp hx with ⟨hx₁, hx₂⟩
-        exact (Finset.disjoint_left.mp hdisj) hx₁ hx₂
-      -- 和集合の濃度＝和
-      have hunion :
-          ((I ∩ Rep) ∪ (I ∩ FreeOf Rep)).card
-            = (I ∩ Rep).card + (I ∩ FreeOf Rep).card := by
-        -- (union).card + 0 = s.card + t.card から (union).card = s.card + t.card
-        have := by simpa [hinter_zero] using hsum
-        exact card_union_of_disjoint hdisj
-      -- I = (I∩Rep) ∪ (I∩FreeOf Rep) を戻す
-      -- hcover : I = I ∩ Rep ∪ I ∩ FreeOf Rep
-      -- hunion : (I ∩ Rep ∪ I ∩ FreeOf Rep).card = (I ∩ Rep).card + (I ∩ FreeOf Rep).card
-      show #I = #(I ∩ Rep) + #(I ∩ FreeOf Rep)
-      dsimp [FreeOf]
-      exact hnat
-  -/
+
 
 omit [LinearOrder α] in
 omit [Fintype α] in

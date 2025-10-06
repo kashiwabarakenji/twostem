@@ -15,33 +15,17 @@ lean_lib «Twostem» where
     `Twostem.Closure.Core,
     `Twostem.Closure.Step,
     `Twostem.Closure.Sync,
+    `Twostem.MainCore,
+    `Twostem.NDS,
+    `Twostem.Bridge,
+    `Twostem.BridgeI,
+    --`Twostem.Fiber,
+    --`Twostem.Synchronous,
     --`Twostem.Rules,
     --`Twostem.Closure,
-    `Twostem.MainCore,
-    `Twostem.Fiber,
-    `Twostem.NDS,
-    `Twostem.Synchronous,
-    `Twostem.Bridge,
-    `Twostem.Derivation,
-    `Twostem
---    `Twostem.Twostem
-    /-
-    `Twostem.General,
-    `Twostem.Basic,
-    `Twostem.BDBasic,
-    `Twostem.ProblemA,
-    `Twostem.ProblemB,
-    `Twostem.ProblemC,
-    `Twostem.ProblemCC,
-    `Twostem.ProblemDD,
-    `Twostem.SCC,
-    `Twostem.Free,
-    `Twostem.Excess,
-    `Twostem.Main,
-    `Twostem.ProblemA_UC,
-    `Twostem.B_Existence,
-    `Twostem.B_NoBarrier_SafeShrink_UC
-    -/
+    --`Twostem.Derivation,
+    --`Twostem.Twostem
+   `Twostem
   ]
 
 require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.23.0"

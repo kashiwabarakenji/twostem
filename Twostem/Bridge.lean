@@ -9,11 +9,10 @@ import Twostem.Closure.Abstract
 import Twostem.Closure.Core
 import Twostem.NDS
 import Twostem.MainCore
---import Twostem.Fiber --FreeOfなどで必要。
---import Twostem.Synchronous
---import Twostem.Derivation --mem_closure_iff_derivなど。
 
 namespace Twostem
+
+--addedFamilyの定義と、weak_liftingとhead_not_in_closure_of_eraseとisWitness_disjointは使うかもしれないが、そのあとは消しても影響ないかも。
 
 open scoped BigOperators
 open scoped symmDiff
@@ -21,7 +20,6 @@ open Closure
 open Finset
 
 variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)]
-
 
 --/***********************
 -- * 4. 弱化リフティング
@@ -38,8 +36,8 @@ noncomputable def addedFamily
   exact (Family (α := α) (R.erase t)).filter
     (fun I => t.prem ⊆ I ∧ t.head ∉ I)
 
-
---補題5.1あたり。今の所直接は使われてないが、重要だと思われる。
+omit [DecidableEq α] [Fintype α] [DecidableEq (Rule α)] in
+--補題5.1あたり。今の所直接は参照されてないが、重要な可能性はある。
 lemma weak_lifting [Fintype α] [DecidableEq α] [DecidableEq (Rule α)]
   (ρ : RuleOrder α) (R : Finset (Rule α)) [DecidablePred (IsClosed R)]
   (hUC : UC R)
@@ -71,33 +69,17 @@ lemma weak_lifting [Fintype α] [DecidableEq α] [DecidableEq (Rule α)]
 
   -- (3) addedFamily メンバ性
   have hJclosed : IsClosed (R.erase t) J := by exact syncCl_closed (R.erase t) (B ∪ S)
-  have hJmem : J ∈ Family (α:=α) (R.erase t) := by simpa [mem_Family] using hJclosed
+  have hJmem : J ∈ Family (α:=α) (R.erase t) := by
+    simp_all only [mem_union, not_or, IsClosed, mem_erase, ne_eq, and_imp, J]
+    obtain ⟨left, right⟩ := htHead
+    rw [Family]
+    simp_all only [IsClosed, mem_erase, ne_eq, and_imp, powerset_univ, mem_filter, mem_univ, not_false_eq_true,
+      implies_true, and_self]
   have hfilter : (t.prem ⊆ J ∧ t.head ∉ J) := ⟨h1, h2⟩
   have : J ∈ (Family (α:=α) (R.erase t)).filter
             (fun I => t.prem ⊆ I ∧ t.head ∉ I) := by
     simpa [mem_filter] using And.intro hJmem hfilter
   exact And.intro h1 (And.intro h2 (by simpa [addedFamily] using this))
-
-
-/-
-noncomputable def addedFamily (S : Finset α) (R : Finset (Rule α)) [DecidablePred (IsClosed R)] (t : Rule α) :
-    Finset (Finset α) :=
-  let _ : DecidablePred (IsClosed (R.erase t)) :=
-    fun I => Classical.dec (IsClosed (R.erase t) I)
-  (Family (α:=α) (R.erase t)).filter
-  (fun I => t.prem ⊆ I ∧ t.head ∉ I)
--/
-
-
-
--- Twostem/Bridge.lean の末尾付近に追記
-
-
---variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α]
-
-/- UC: 同一ヘッドを持つルールは高々 1 本 -/
---def UniqueChild (R : Finset (Rule α)) : Prop :=
---  ∀ {t₁ t₂}, t₁ ∈ R → t₂ ∈ R → t₁.head = t₂.head → t₁ = t₂
 
 --補題5.1
 omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
@@ -192,7 +174,7 @@ lemma head_not_in_closure_of_erase
 -- ***********************/
 
 omit [DecidableEq (Rule α)] in
-lemma isWitness_disjoint
+private lemma isWitness_disjoint
   (ρ : RuleOrder α) (R : Finset (Rule α)) (B S : Finset α) (t : Rule α)
   (hW : isWitness ρ R B S t) :
   Disjoint B S := by
@@ -207,7 +189,7 @@ lemma isWitness_disjoint
   simp_all only [inf_eq_inter, bot_eq_empty]
   rwa [inter_comm]
 
-
+----ここから後ろはほとんど使われてないものが並んでいる。
 
 --使わないかも。
 omit [Fintype α] [DecidableEq (Rule α)] in
@@ -236,6 +218,7 @@ lemma syncClIter_mono_in_steps (R : Finset (Rule α)) (I : Finset α) (k : ℕ) 
           | none => syncClIter R I k
           | some a => insert a (syncClIter R I k)))
 
+--使われてない
 omit [Fintype α] [DecidableEq (Rule α)] in
 lemma syncClIter_increasing (R : Finset (Rule α)) (I : Finset α) :
   ∀ k₁ k₂, k₁ ≤ k₂ → syncClIter R I k₁ ⊆ syncClIter R I k₂ := by
@@ -250,145 +233,8 @@ lemma syncClIter_increasing (R : Finset (Rule α)) (I : Finset α) :
       ⊆ syncClIter R I _ := ih
       _ ⊆ syncClIter R I (_ + 1) := syncClIter_mono_in_steps R I _
 
-/-
---ChatGPTによると、これは成り立たない。
-lemma syncClIter_mono [DecidableEq α] (R : Finset (Rule α)) [DecidableEq (Rule α)] (k : ℕ) :
-  Monotone (syncClIter R · k) := by
-  -/
-
-
-/-
-lemma syncCl_contains_derivable [Fintype α] [DecidableEq α]
-  (R : Finset (Rule α)) (I : Finset α) :
-  ∀ r ∈ R, r.prem ⊆ syncCl R I →
-    r.head ∈ syncCl R I ∨ r.head ∈ fires R (syncCl R I) := by
--/
-
-/- UniqueChildがないと成り立たないらしい。
-lemma twoStem_one_new_head_at_first_diff
-  (ρ : RuleOrder α) (R : Finset (Rule α)) (hTS : TwoStemR R)
-  (X Y : Finset α)
-  (k : ℕ)
-  (hXYeq : parIter (R.erase t) X k = parIter (R.erase t) Y k)
-  (hΔ_here :
-    ((parIter (R.erase t) X (k+1) \ parIter (R.erase t) Y (k+1)) ∪
-     (parIter (R.erase t) Y (k+1) \ parIter (R.erase t) X (k+1))).Nonempty) :
-  ∃! f, f ∈
-    ((parIter (R.erase t) X (k+1) \ parIter (R.erase t) Y (k+1)) ∪
-     (parIter (R.erase t) Y (k+1) \ parIter (R.erase t) X (k+1))) := by
-  sorry
--/
-
-
-
-
--- A: 対称差が単点 & 次段一致 → 直前段は等しい。なりたたない。
-/-
-lemma singleton_symmDiff_step_eq_forces_prev_equal
-  [DecidableEq α]
-  (R : Finset (Rule α)) (hNS : NoSwap R) (hNTF : NoTwoFreshHeads R)
-  (X Y : Finset α) (f : α)
-  (hStep : stepPar R X = stepPar R Y)
-  (hSingle : (X \ Y) ∪ (Y \ X) = ({f} : Finset α))
-  (hUC' : UniqueChild α R) : X = Y := by
--/
-
-/-
-lemma singleton_symmDiff_step_eq_struct
-  [DecidableEq α]
-  (R : Finset (Rule α)) (hNS : NoSwap R) (hNTF : NoTwoFreshHeads R)
-  (X Y : Finset α) (f : α)
-  (hStep : stepPar R X = stepPar R Y)
-  (hSingle : (X \ Y) ∪ (Y \ X) = ({f} : Finset α))
-  (hUC' : UniqueChild α R) :
-  (X \ Y = ∅ ∧ Y \ X = {f} ∧ f ∈ fires R X ∧ f ∉ X)
-  ∨
-  (Y \ X = ∅ ∧ X \ Y = {f} ∧ f ∈ fires R Y ∧ f ∉ Y) :=
-by
-  sorry
--/
-
-/-
--- B: 直前段が等しい & 次段一致 → 初期入力も等しい
-lemma prev_equal_lifts_to_U_eq_V
-  [DecidableEq α]
-  (R : Finset (Rule α)) (U V : Finset α) (k : ℕ)
-  (hEqNext : parIter R U (k+1) = parIter R V (k+1))
-  (hPrevEq : parIter R U k = parIter R V k) : U = V := by
-  -- parIter の再帰定義で下ろす（あなたの標準補題に合わせて詰めてください）
-  -- スケッチ：
-  --   parIter R U 0 = U, parIter R V 0 = V
-  --   k から 0 へ帰納で等式を伝播
-  admit
--/
-
-/-
-omit [DecidableEq α] [Fintype α] [LinearOrder α] in
---証明ルートを変えたので以下はいらなくなったかも。
-lemma head_ne_thead_on_right_branch
-  [DecidableEq α] [Fintype α] [LinearOrder α]
-  (R : Finset (Rule α)) (t : Rule α)
-  (hUC : UniqueChild α R) (ht : t ∈ R)
-  (X : Finset α)
-  (hExu : ∃! r : Rule α, r ∈ R.erase t ∧ r.prem ⊆ X ∧ r.head = f)
-  : f ≠ t.head := by
-  classical
-  -- 一意実在の r を取り出す
-  rcases hExu with ⟨r, hr_pack, _uniq⟩
-  have hrErase : r ∈ R.erase t := hr_pack.left
-  have hrHead  : r.head = f     := (hr_pack.right).right
-  -- erase 側の head は t.head と一致しない
-  have hneq : r.head ≠ t.head :=
-    erased_cause_head_ne_thead (hUC := hUC) (ht := ht) (hrErase := hrErase)
-  -- r.head = f で置換して f ≠ t.head
-  exact by
-    intro hf
-    apply hneq
-    simp [hrHead, hf]
--/
-
-/-
---成り立たない。
-lemma head_eq_thead_on_right_branch
-  [DecidableEq α] [Fintype α] [LinearOrder α]
-  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
-  (hUC : UC R) (ht : t ∈ R)
-  {B S₁: Finset α} (hW1 : isWitness ρ R B S₁ t)
-  {k : ℕ} {f : α}
-  (U V : Finset α) (hU : U = B ∪ S₁)
-  (hEqNext :
-    parIter (R.erase t) U (k+1) = parIter (R.erase t) V (k+1))
-  (X Y : Finset α)
-  (hX : X = parIter (R.erase t) U k)
-  (hY : Y = parIter (R.erase t) V k)
-  (hXYempty : X \ Y = ∅)
-  (hExu : ∃! r : Rule α, r ∈ R.erase t ∧ r.prem ⊆ X ∧ r.head = f)
-  : f = t.head := by
-  sorry
--/
-/-
---成り立たない。
-lemma head_eq_thead_on_left_branch
-  [DecidableEq α] [Fintype α] [LinearOrder α]
-  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
-  (hUC : UC R) (ht : t ∈ R)
-  {B S₁  : Finset α} (hW1 : isWitness ρ R B S₁ t)
-  {k : ℕ} {f : α}
-  (U V : Finset α) (hU : U = B ∪ S₁)
-  (hEqNext :
-    parIter (R.erase t) U (k+1) = parIter (R.erase t) V (k+1))
-  (X Y : Finset α)
-  (hX : X = parIter (R.erase t) U k)
-  (hY : Y = parIter (R.erase t) V k)
-  (hYXempty : Y \ X = ∅)
-  (hExuY : ∃! r : Rule α, r ∈ R.erase t ∧ r.prem ⊆ Y ∧ r.head = f)
-  : f = t.head := by
-  -- 右枝のミラー。あなたの「左枝」ブロックを関数化すればOK。
-  admit
--/
-
-
-
+--使われてない
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
 lemma unique_S_of_union_eq
   [DecidableEq α]
   {B S₁ S₂ : Finset α}
@@ -396,10 +242,11 @@ lemma unique_S_of_union_eq
   (hUV : B ∪ S₁ = B ∪ S₂) : S₁ = S₂ :=
 disjoint_union_eq_implies_right_eq hD1 hD2 hUV
 
-/-- 2つの閉包が異なるなら、最初に食い違う段 `k`（`k ≤ card α`）が取れる。
+/- 2つの閉包が異なるなら、最初に食い違う段 `k`（`k ≤ card α`）が取れる。
     その直前では一致している。 -/
-
-lemma parIter_subset_syncCl
+--使われている。
+omit [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma parIter_subset_syncCl
   (R : Finset (Rule α)) (I : Finset α) :
   ∀ k, parIter R I k ⊆ syncCl R I := by
   intro k; induction k with
@@ -434,7 +281,9 @@ lemma parIter_subset_syncCl
         fun x hx => hstep_sub (this hx)
       simpa [parIter] using this ha
 
-lemma syncCl_eq_parIter_card
+--使われている
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)]in
+private lemma syncCl_eq_parIter_card
   [DecidableEq α] [Fintype α]
   (R : Finset (Rule α)) (I : Finset α) :
   syncCl R I = parIter R I (Fintype.card α) := by
@@ -482,7 +331,9 @@ lemma syncCl_eq_parIter_card
   apply Finset.Subset.antisymm_iff.mpr
   exact And.intro h1 h2
 
-lemma exists_min_k_of_syncCl_ne
+--コメントアウトしたものの中で使われている。
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma exists_min_k_of_syncCl_ne
   [DecidableEq α] [Fintype α]
   {R' : Finset (Rule α)} {U V : Finset α}
   (hne : syncCl (R:=R') U ≠ syncCl (R:=R') V) :
@@ -590,7 +441,418 @@ lemma exists_min_k_of_syncCl_ne
         and_self, tsub_le_iff_right, gt_iff_lt, false_or, P, k]
     | inr hE => exact hE
 
+--使われている
+omit [Fintype α] in
+private lemma nextHead?_mem_and_min
+  {α} [DecidableEq α] [LinearOrder α]
+  {R : Finset (Rule α)} {I : Finset α} {a : α}
+  (h : nextHead? R I = some a) :
+  a ∈ (applicable R I).image (fun t => t.head) ∧
+  ∀ b ∈ (applicable R I).image (fun t => t.head), a ≤ b := by
+  classical
+  unfold nextHead? at h
+  set heads := (applicable R I).image (fun t => t.head) with hH
+  by_cases hne : heads.Nonempty
+  · simp [hH] at h
+    constructor
+    · by_cases hne : heads.Nonempty
+      case pos =>
+        rcases h with ⟨happ, hmin⟩
+        have hmem_min :
+            (image (fun t => t.head)
+                  ({t ∈ R | t.prem ⊆ I ∧ t.head ∉ I})).min'
+              (Finset.image_nonempty.mpr happ)
+              ∈ image (fun t => t.head)
+                      ({t ∈ R | t.prem ⊆ I ∧ t.head ∉ I}) :=
+          Finset.min'_mem _ _
+        -- `a = min' …` を用いて書き換え（`applicable R I = R.filter …` を使うなら `[applicable]` に直しても可）
+        have : a ∈ image (fun t => t.head) (applicable R I) := by
+          simpa [applicable, hmin] using hmem_min
+        -- 最後に `heads = image …` で `heads` 側へ戻す
+        simpa [hH] using this
 
+      case neg =>
+        (expose_names; exact False.elim (hne hne_1))
+    · intro b hb
+      simp_all [heads]
+      subst h
+      obtain ⟨w, h⟩ := hb
+      obtain ⟨left, right⟩ := h
+      obtain ⟨left, right_1⟩ := left
+      obtain ⟨left_1, right_1⟩ := right_1
+      subst right
+      apply min'_le
+      simp_all only [applicable, image_nonempty, mem_image, mem_filter, heads]
+      use w
+
+  · constructor
+    · simp_all only [applicable, image_nonempty, Option.dite_none_right_eq_some, Option.some.injEq, not_nonempty_iff_eq_empty,
+        filter_eq_empty_iff, not_and, Decidable.not_not, mem_image, mem_filter, isEmpty_Prop, not_true_eq_false,
+        not_false_eq_true, implies_true, IsEmpty.exists_iff, heads]
+    · intro b hb
+      simp_all only [applicable, image_nonempty, Option.dite_none_right_eq_some, Option.some.injEq, not_nonempty_iff_eq_empty,
+        filter_eq_empty_iff, not_and, Decidable.not_not, mem_image, mem_filter, isEmpty_Prop, not_true_eq_false,
+        not_false_eq_true, implies_true, IsEmpty.exists_iff, heads]
+
+--使われている。
+lemma step2_superset
+  {α} [DecidableEq α] [LinearOrder α]
+  (R : Finset (Rule α)) (I : Finset α) :
+  I ⊆ step2 R I := by
+  intro x hx
+  cases h : nextHead? R I with
+  | none   => simpa [step2, h] using hx
+  | some a =>
+      have : x ∈ insert a I := by exact mem_insert_of_mem hx
+      simpa [step2, h] using this
+
+def iter2
+  {α} [DecidableEq α] [Fintype α] [LinearOrder α]
+  (R : Finset (Rule α)) (I : Finset α) : Nat → Finset α
+  | 0     => I
+  | k+1   => step2 R (iter2 R I k)
+
+lemma iter2_le_of_le
+  {α} [DecidableEq α] [Fintype α] [LinearOrder α]
+  (R : Finset (Rule α)) (I : Finset α)
+  {m n : ℕ} (hmn : m ≤ n) :
+  iter2 R I m ⊆ iter2 R I n := by
+  classical
+  induction' hmn with n hmn ih
+  · simp
+  · intro x hx
+    have hx' := ih hx
+    simpa [iter2] using (step2_superset R (iter2 R I n) hx')
+
+--使われてない。
+private lemma step2_adds_minimal_head
+  {α} [DecidableEq α] [LinearOrder α]
+  {R : Finset (Rule α)} {I : Finset α} {x : α}
+  (hx : x ∈ step2 R I \ I) :
+  x ∈ (applicable R I).image (fun t => t.head) ∧
+  ∀ b ∈ (applicable R I).image (fun t => t.head), x ≤ b := by
+  classical
+  rcases Finset.mem_sdiff.mp hx with ⟨hx_step, hx_notI⟩
+  cases h : nextHead? R I with
+  | none =>
+      simp
+      constructor
+      · dsimp [nextHead?] at h
+        simp at h
+        rcases Finset.mem_sdiff.mp hx with ⟨hx_step, hx_notI⟩
+        -- step2 の場合分け
+        cases hnh : nextHead? R I with
+        | none =>
+            -- none なら step2 = I なので矛盾
+              have hI : x ∈ I := by
+                simpa [step2, hnh] using hx_step
+              -- 矛盾から任意の命題が従う
+              exact False.elim (hx_notI hI)
+
+        | some a =>
+            -- x ∈ insert a I なので x = a か x ∈ I
+            have hx_ins : x ∈ insert a I := by simpa [step2, hnh] using hx_step
+            rcases Finset.mem_insert.mp hx_ins with hx_eq | hx_inI
+            · -- x = a の場合：nextHead?_spec_some から規則 t を取る
+              subst hx_eq
+              rcases nextHead?_spec_some (R:=R) (I:=I) hnh with ⟨ha_notI, ⟨t, htR, htPrem, htHead⟩⟩
+              refine ⟨t, ?_, ?_⟩
+              · exact ⟨htR, htPrem, by simpa [htHead] using ha_notI⟩
+              · -- 目標は t.head = x。今は x を a に置換済みなので t.head = a で十分
+                simp [htHead]
+            · -- x ∈ I は sdiff と矛盾
+              exact (hx_notI hx_inI).elim
+
+      · intro b hb hb2 hb3 hb4 hb5
+        dsimp [nextHead?] at h
+        simp at h
+        subst hb5
+        simp_all only [mem_sdiff, not_false_eq_true, and_self, not_true_eq_false]
+
+  | some a =>
+      have hx_ins : x ∈ insert a I := by simpa [step2, h] using hx_step
+      rcases Finset.mem_insert.mp hx_ins with rfl | hxI
+      · exact nextHead?_mem_and_min (R:=R) (I:=I)  h
+      · exact (hx_notI hxI).elim
+
+--使われていない。
+private lemma noRuleWith_thead_in_erase
+  {α} [DecidableEq α] {R : Finset (Rule α)} {t : Rule α}
+  (hUC : UniqueChild (α:=α) R) (ht : t ∈ R) :
+  ∀ {r}, r ∈ R.erase t → r.head ≠ t.head := by
+  classical
+  intro r hr
+  have hrR : r ∈ R := Finset.mem_of_mem_erase hr
+  intro hEq
+  have : r = t := hUC hrR ht hEq
+  have : r ∉ R.erase t := by
+    subst this
+    simp_all only [mem_erase, ne_eq, not_true_eq_false, and_true]
+  exact this hr
+
+--使われてない
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma step2_eq_iff_applicable_empty
+  [DecidableEq α] [LinearOrder α]
+  (R : Finset (Rule α)) (I : Finset α) :
+  step2 R I = I ↔ applicable R I = ∅ := by
+  classical
+  constructor
+  · intro h
+    cases hnh : nextHead? R I with
+    | none   =>
+      simp
+      intro x hx hhx
+      dsimp [nextHead?] at hnh
+      simp at hnh
+      simp_all only
+
+    | some a =>
+        -- some の場合は step2 = insert a I なので不動点は無理
+        have hii: I = insert a I := by simpa [step2, hnh] using h.symm
+        -- 矛盾から空を導く（好みで `nextHead?_spec_none` を使う形にしてOK）
+        exact False.elim <| by
+          have : a ∈ insert a I := by simp
+          have : a ∈ I := by
+            rw [←hii] at this
+            exact this
+          rcases nextHead?_spec_some (R:=R) (I:=I) (a:=a) hnh with ⟨haNot, _⟩
+          exact haNot this
+  · intro h
+    -- applicable 空 ⇒ nextHead? = none ⇒ 据え置き
+    have : nextHead? R I = none := by
+      unfold nextHead?
+      simp
+      intro x a a_1
+      simp_all only [applicable, filter_eq_empty_iff, not_and, Decidable.not_not]
+    simp [step2, this]
+
+--使われてない
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma ssubset_step2_of_applicable_nonempty
+  [DecidableEq α] [LinearOrder α]
+  {R : Finset (Rule α)} {I : Finset α}
+  (hne : (applicable R I).Nonempty) :
+  I ⊂ step2 R I := by
+  classical
+  refine ⟨step2_superset R I, ?_⟩
+  -- nextHead? = some a, その a は I に入っていないので真に増える
+  obtain ⟨a, ha⟩ : ∃ a, nextHead? R I = some a := by
+    -- heads 非空から some を取る（applicable 非空 ⇒ heads 非空）
+    unfold nextHead?
+    have : ((applicable R I).image (fun t => t.head)).Nonempty :=
+      Finset.image_nonempty.mpr hne
+    simp
+    let S : Finset (Rule α) := {t ∈ R | t.prem ⊆ I ∧ t.head ∉ I}
+
+    -- hne : (applicable R I).Nonempty から S.Nonempty を作る
+    have happ : S.Nonempty := by
+      rcases hne with ⟨r, hr⟩
+      -- hr : r ∈ applicable R I
+      -- applicable を展開
+      change r ∈ R.filter (fun t => t.prem ⊆ I ∧ t.head ∉ I) at hr
+      -- 目標は r ∈ S だが，S はちょうど同じ filter 記法
+      refine ⟨r, ?_⟩
+      change r ∈ R.filter (fun t => t.prem ⊆ I ∧ t.head ∉ I)
+      exact hr
+
+    -- 画像の非空性
+    have himg : (image (fun t => t.head) S).Nonempty :=
+      Finset.image_nonempty.mpr happ
+
+    -- a を「その画像の min'」として取る
+    refine ⟨(image (fun t => t.head) S).min' himg, ?_, ?_⟩
+    · -- Nonempty の証人
+      exact happ
+    · -- min' の定義通り
+      rfl
+
+  rcases nextHead?_spec_some (R:=R) (I:=I) (a:=a) ha with ⟨ha_notI, -⟩
+  intro hEq
+  have : a ∈ I := by
+    have : a ∈ step2 R I := by
+      simp [step2, ha]
+    exact hEq this
+
+
+  exact ha_notI this
+
+--使われてない
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma applicable_lift_of_head_notin
+  [DecidableEq α]
+  {R : Finset (Rule α)} {I J : Finset α}
+  (hIJ : I ⊆ J) {t : Rule α}
+  (ht : t ∈ applicable R I) (hnotJ : t.head ∉ J) :
+  t ∈ applicable R J := by
+  rcases Finset.mem_filter.mp ht with ⟨hR, ⟨hprem, _⟩⟩
+  refine Finset.mem_filter.mpr ?_
+  refine ⟨hR, ⟨?premJ, hnotJ⟩⟩
+  intro x hx
+  exact hIJ (hprem hx)
+
+--使われてない
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma enter_at_iter2_exists_rule
+  [DecidableEq α] [LinearOrder α]
+  {R : Finset (Rule α)} {I : Finset α} {x : α}
+  (hx : x ∈ step2 R I \ I) :
+  ∃ r ∈ R, r.prem ⊆ I ∧ r.head = x := by
+  classical
+  -- step2 で some a を入れて x=a、`nextHead?_spec_some` を使う
+  rcases Finset.mem_sdiff.mp hx with ⟨hx_step, hx_notI⟩
+  cases h : nextHead? R I with
+  | none =>
+    have hI : x ∈ I := by
+
+      -- step2 を展開（match を hnh で解消）
+      simp [step2] at hx_step
+      simp_all only [mem_sdiff, not_false_eq_true, and_true]
+    exact False.elim (hx_notI hI)
+
+  | some a =>
+      have hx_ins : x ∈ insert a I := by simpa [step2, h] using hx_step
+      rcases Finset.mem_insert.mp hx_ins with hx_eq | hx_inI
+      · subst hx_eq
+        rcases nextHead?_spec_some (R:=R) (I:=I) h with ⟨_, ⟨r, hrR, hrPrem, hrHead⟩⟩
+        exact ⟨r, hrR, hrPrem, by exact hrHead⟩
+      · exact (hx_notI hx_inI).elim
+
+--コメントアウトしたものの中で使われている
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma frozen_forever_of_none
+  [DecidableEq α] [LinearOrder α]
+  (R : Finset (Rule α)) {S : Finset α}
+  (h : nextHead? R S = none) :
+  ∀ m, (Nat.iterate (step2 R) m) S = S := by
+  intro m; induction m with
+  | zero => rfl
+  | succ m ih =>
+      -- step2 S = S, かつ以降も S に留まる
+      have : step2 R S = S := by simp [step2, h]
+      simp [Nat.iterate, ih, this]
+
+--コメントアウトしたものの中で、使われている
+omit [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)] in
+private lemma all_steps_increase_if_last_increases
+  [DecidableEq α] [LinearOrder α]
+  (R : Finset (Rule α)) (I : Finset α) (N : ℕ)
+  (hneq : iter2 R I N ≠ iter2 R I (N+1)) :
+  ∀ k ≤ N, iter2 R I k ≠ iter2 R I (k+1) := by
+  classical
+  intro k hk
+  by_contra heq
+  -- k 段で据え置きなら nextHead? = none
+  have hnone : nextHead? R (iter2 R I k) = none := by
+    -- `heq` を `step2` の定義に戻して評価すると `none` が出る
+    -- （`some` なら insert で絶対に変わるため）
+    cases hnh : nextHead? R (iter2 R I k) with
+    | none   => rfl
+    | some a =>
+      simp
+      set S := iter2 R I k
+
+      -- (k+1)段は step2
+      have hstep : iter2 R I (k+1) = step2 R S := by
+        -- S = iter2 R I k を使って定義展開
+        change iter2 R I (k+1) = step2 R (iter2 R I k)
+        simp [iter2]
+
+      -- heq：S = iter2 R I (k+1) なので、step2 R S = S が従う
+      have hfix : step2 R S = S := by
+        have : S = iter2 R I (k+1) := by
+          -- S の定義で置換
+          change iter2 R I k = iter2 R I (k+1) at heq
+          exact heq
+        -- S = (k+1)段 = step2 R S
+        have : S = step2 R S := this.trans hstep
+        exact this.symm
+
+      -- nextHead? = some a なら step2 は insert a
+      have hsomeS : nextHead? R S = some a := by
+        -- S の定義で置換
+        change nextHead? R (iter2 R I k) = some a at hnh
+        exact hnh
+      have hstep_some : step2 R S = insert a S := by
+        simp [step2, hsomeS]
+
+      -- 以上より insert a S = S
+      have hins_eq : insert a S = S := by
+        -- hfix : step2 R S = S と hstep_some を合成
+        apply Eq.trans
+        exact id (Eq.symm hstep_some)--hstep_some hfix
+        exact hfix
+
+      -- すると a ∈ S が出る（mem を等式で運ぶ）
+      have ha_in_S : a ∈ S := by
+        -- まず a ∈ insert a S
+        have ha_ins : a ∈ insert a S := Finset.mem_insert_self a S
+        -- (a ∈ insert a S) = (a ∈ S) に書き換え
+        have hmem_eq : (a ∈ insert a S) = (a ∈ S) :=
+          congrArg (fun s => a ∈ s) hins_eq
+        exact Eq.mp hmem_eq ha_ins
+
+      -- しかし spec_some から a ∉ S なので矛盾
+      have ha_notin : a ∉ S := by
+        rcases nextHead?_spec_some (R:=R) (I:=S) (a:=a) hsomeS with ⟨ha_not, _⟩
+        exact ha_not
+      exact ha_notin ha_in_S
+
+  -- 据え置き以降は永遠に据え置き → 特に N+1 段も等しい
+  set S := iter2 R I k with hS
+  have step_S : step2 R S = S := by
+    -- hnone から直ちに step2 R S = S
+    have : nextHead? R S = none := by
+      -- hnone を S に書き換え
+      have : nextHead? R (iter2 R I k) = none := hnone
+      simpa [hS] using this
+    -- step2 の定義
+    simp [step2, this]
+
+  -- d による帰納で iter2 (k + d) = S
+  have frozen_from_k : ∀ d : ℕ, iter2 R I (k + d) = S := by
+    intro d
+    induction' d with d ih
+    · -- d = 0
+      -- iter2 R I (k+0) = iter2 R I k = S
+      exact hS.symm
+    · -- d+1
+      -- iter2 (k+d+1) = step2 R (iter2 (k+d)) = step2 R S = S
+      have h1 : iter2 R I (k + d + 1) = step2 R (iter2 R I (k + d)) := by
+        -- iter2 の定義（k+d+1 段は 1 ステップ）
+        -- 注意: + の結合の整形が必要
+        have : k + d + 1 = (k + d) + 1 := by exact rfl
+        -- 上の等式で simp
+        simp [iter2]
+      calc
+        iter2 R I (k + d + 1)
+            = step2 R (iter2 R I (k + d)) := h1
+        _   = step2 R S := by
+                -- 直前の帰納仮定 ih : iter2 R I (k + d) = S
+                -- これを使って書き換え
+                -- `congrArg` で step2 の引数に等式を適用
+                have := congrArg (fun s => step2 R s) ih
+                exact this
+        _   = S := step_S
+
+  -- N = k + d に分解して、N と N+1 の両方が S に等しいことを示す
+  rcases Nat.exists_eq_add_of_le hk with ⟨d, rfl⟩
+  -- これで (k+d) 段と (k+d+1) 段の等号が出る
+  have hN  : iter2 R I (k + d)     = S := frozen_from_k d
+  have hN1 : iter2 R I (k + d + 1) = S := frozen_from_k (d+1)
+  -- したがって等しい
+  have hEqFinal :
+      iter2 R I (k + d) = iter2 R I (k + d + 1) := by
+    -- 2つの等式を合成
+    apply hN.trans hN1.symm
+
+  -- ところで N = k+d ≤ N なので、特に N= k+d。今の等式は N と N+1 の等式に他ならない。
+  -- これは hneq に反する（N は仮定の N）
+  -- 形式的には、k+d = N の置換は上で済んでいる（`rcases` で rfl を入れている）。
+  exact hneq hEqFinal
+
+end Twostem
+/-
 -- この補題の前提は矛盾している：
 -- parIter R' U (k-1) = parIter R' V (k-1) なら、
 -- parIter R' U k = stepPar R' (parIter R' U (k-1)) = stepPar R' (parIter R' V (k-1)) = parIter R' V k
@@ -614,6 +876,7 @@ lemma singleton_symmDiff_at_first_diverge
   simp only [parIter]
   -- hprev を使う
   rw [hprev]
+-/
 
 /-なりたたないとはいえないが、必要ない。
 lemma syncCl_eq_of_two_witnesses_ARoute
@@ -813,6 +1076,7 @@ lemma card_witness_le_one_from_unique
   cases this
   rfl
 -/
+/-古い試み
 -- Witness の一意性から閉集合のサイズが全体の半分以下であることを示す補題
 -- これは UC (UniqueChild) + TwoStem の性質から導かれるべき深い定理
 --
@@ -883,7 +1147,7 @@ lemma NDS_le_zero_of_unique_S
   apply Finset.sum_nonpos
   intro I hI
   exact hTerm_le I hI
-
+-/
 
 
 /-後ろに移動。
@@ -1185,466 +1449,6 @@ lemma multiplicity_le_one_addedFamily
 
 -/
 
-omit [Fintype α] in
-private lemma nextHead?_mem_and_min
-  {α} [DecidableEq α] [LinearOrder α]
-  {R : Finset (Rule α)} {I : Finset α} {a : α}
-  (h : nextHead? R I = some a) :
-  a ∈ (applicable R I).image (fun t => t.head) ∧
-  ∀ b ∈ (applicable R I).image (fun t => t.head), a ≤ b := by
-  classical
-  unfold nextHead? at h
-  set heads := (applicable R I).image (fun t => t.head) with hH
-  by_cases hne : heads.Nonempty
-  · simp [hH] at h
-    constructor
-    · by_cases hne : heads.Nonempty
-      case pos =>
-        rcases h with ⟨happ, hmin⟩
-        have hmem_min :
-            (image (fun t => t.head)
-                  ({t ∈ R | t.prem ⊆ I ∧ t.head ∉ I})).min'
-              (Finset.image_nonempty.mpr happ)
-              ∈ image (fun t => t.head)
-                      ({t ∈ R | t.prem ⊆ I ∧ t.head ∉ I}) :=
-          Finset.min'_mem _ _
-        -- `a = min' …` を用いて書き換え（`applicable R I = R.filter …` を使うなら `[applicable]` に直しても可）
-        have : a ∈ image (fun t => t.head) (applicable R I) := by
-          simpa [applicable, hmin] using hmem_min
-        -- 最後に `heads = image …` で `heads` 側へ戻す
-        simpa [hH] using this
-
-      case neg =>
-        (expose_names; exact False.elim (hne hne_1))
-    · intro b hb
-      simp_all [heads]
-      subst h
-      obtain ⟨w, h⟩ := hb
-      obtain ⟨left, right⟩ := h
-      obtain ⟨left, right_1⟩ := left
-      obtain ⟨left_1, right_1⟩ := right_1
-      subst right
-      apply min'_le
-      simp_all only [applicable, image_nonempty, mem_image, mem_filter, heads]
-      use w
-
-  · constructor
-    · simp_all only [applicable, image_nonempty, Option.dite_none_right_eq_some, Option.some.injEq, not_nonempty_iff_eq_empty,
-        filter_eq_empty_iff, not_and, Decidable.not_not, mem_image, mem_filter, isEmpty_Prop, not_true_eq_false,
-        not_false_eq_true, implies_true, IsEmpty.exists_iff, heads]
-    · intro b hb
-      simp_all only [applicable, image_nonempty, Option.dite_none_right_eq_some, Option.some.injEq, not_nonempty_iff_eq_empty,
-        filter_eq_empty_iff, not_and, Decidable.not_not, mem_image, mem_filter, isEmpty_Prop, not_true_eq_false,
-        not_false_eq_true, implies_true, IsEmpty.exists_iff, heads]
-
---使われている。
-lemma step2_superset
-  {α} [DecidableEq α] [LinearOrder α]
-  (R : Finset (Rule α)) (I : Finset α) :
-  I ⊆ step2 R I := by
-  intro x hx
-  cases h : nextHead? R I with
-  | none   => simpa [step2, h] using hx
-  | some a =>
-      have : x ∈ insert a I := by exact mem_insert_of_mem hx
-      simpa [step2, h] using this
-
-def iter2
-  {α} [DecidableEq α] [Fintype α] [LinearOrder α]
-  (R : Finset (Rule α)) (I : Finset α) : Nat → Finset α
-  | 0     => I
-  | k+1   => step2 R (iter2 R I k)
-
-lemma iter2_le_of_le
-  {α} [DecidableEq α] [Fintype α] [LinearOrder α]
-  (R : Finset (Rule α)) (I : Finset α)
-  {m n : ℕ} (hmn : m ≤ n) :
-  iter2 R I m ⊆ iter2 R I n := by
-  classical
-  induction' hmn with n hmn ih
-  · simp
-  · intro x hx
-    have hx' := ih hx
-    simpa [iter2] using (step2_superset R (iter2 R I n) hx')
-
---使われてない。
-private lemma step2_adds_minimal_head
-  {α} [DecidableEq α] [LinearOrder α]
-  {R : Finset (Rule α)} {I : Finset α} {x : α}
-  (hx : x ∈ step2 R I \ I) :
-  x ∈ (applicable R I).image (fun t => t.head) ∧
-  ∀ b ∈ (applicable R I).image (fun t => t.head), x ≤ b := by
-  classical
-  rcases Finset.mem_sdiff.mp hx with ⟨hx_step, hx_notI⟩
-  cases h : nextHead? R I with
-  | none =>
-      simp
-      constructor
-      · dsimp [nextHead?] at h
-        simp at h
-        rcases Finset.mem_sdiff.mp hx with ⟨hx_step, hx_notI⟩
-        -- step2 の場合分け
-        cases hnh : nextHead? R I with
-        | none =>
-            -- none なら step2 = I なので矛盾
-              have hI : x ∈ I := by
-                simpa [step2, hnh] using hx_step
-              -- 矛盾から任意の命題が従う
-              exact False.elim (hx_notI hI)
-
-        | some a =>
-            -- x ∈ insert a I なので x = a か x ∈ I
-            have hx_ins : x ∈ insert a I := by simpa [step2, hnh] using hx_step
-            rcases Finset.mem_insert.mp hx_ins with hx_eq | hx_inI
-            · -- x = a の場合：nextHead?_spec_some から規則 t を取る
-              subst hx_eq
-              rcases nextHead?_spec_some (R:=R) (I:=I) hnh with ⟨ha_notI, ⟨t, htR, htPrem, htHead⟩⟩
-              refine ⟨t, ?_, ?_⟩
-              · exact ⟨htR, htPrem, by simpa [htHead] using ha_notI⟩
-              · -- 目標は t.head = x。今は x を a に置換済みなので t.head = a で十分
-                simp [htHead]
-            · -- x ∈ I は sdiff と矛盾
-              exact (hx_notI hx_inI).elim
-
-      · intro b hb hb2 hb3 hb4 hb5
-        dsimp [nextHead?] at h
-        simp at h
-        subst hb5
-        simp_all only [mem_sdiff, not_false_eq_true, and_self, not_true_eq_false]
-
-  | some a =>
-      have hx_ins : x ∈ insert a I := by simpa [step2, h] using hx_step
-      rcases Finset.mem_insert.mp hx_ins with rfl | hxI
-      · exact nextHead?_mem_and_min (R:=R) (I:=I)  h
-      · exact (hx_notI hxI).elim
-
---使われている。
-private lemma noRuleWith_thead_in_erase
-  {α} [DecidableEq α] {R : Finset (Rule α)} {t : Rule α}
-  (hUC : UniqueChild (α:=α) R) (ht : t ∈ R) :
-  ∀ {r}, r ∈ R.erase t → r.head ≠ t.head := by
-  classical
-  intro r hr
-  have hrR : r ∈ R := Finset.mem_of_mem_erase hr
-  intro hEq
-  have : r = t := hUC hrR ht hEq
-  have : r ∉ R.erase t := by
-    subst this
-    simp_all only [mem_erase, ne_eq, not_true_eq_false, and_true]
-  exact this hr
-
-/-
---使われてない。
-lemma head_not_in_iter2_of_erase
-  {α} [DecidableEq α] [Fintype α] [LinearOrder α]
-  {R : Finset (Rule α)} {t : Rule α}
-  (hUC : UniqueChild (α:=α) R) (ht : t ∈ R)
-  {I₀ : Finset α} (h0 : t.head ∉ I₀) :
-  ∀ k, t.head ∉ iter2 (R.erase t) I₀ k := by
-  classical
-  intro k; induction' k with k ih
-  · simpa [iter2] using h0
-  · intro hIn
-    cases hnh : nextHead? (R.erase t) (iter2 (R.erase t) I₀ k) with
-    | none =>
-      have : t.head ∈ iter2 (R.erase t) I₀ k := by
-        simpa [iter2, step2, hnh] using hIn
-      exact ih this
-
-    | some a =>
-        have : t.head ∈ insert a (iter2 (R.erase t) I₀ k) := by
-          simpa [iter2, step2, hnh] using hIn
-        rcases Finset.mem_insert.mp this with hEq | hOld
-        · -- `a = t.head` だと、erase側に `t.head` を持つ規則があることになって矛盾
-          -- 最小性から `∃ r ∈ R.erase t, r.head = a`
-          have hmin := nextHead?_mem_and_min
-            (R:=(R.erase t)) (I:=(iter2 (R.erase t) I₀ k)) (a:=a) hnh
-          rcases hmin.left with ha_mem
-          rcases Finset.mem_image.mp ha_mem with ⟨r, hrApp, rfl⟩
-          have hr_inRE : r ∈ R.erase t := (Finset.mem_filter.mp hrApp).1
-          exact (noRuleWith_thead_in_erase (R:=R) (t:=t) hUC ht hr_inRE) (by exact id (Eq.symm hEq))
-        · exact ih hOld
--/
-
-omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
-lemma step2_eq_iff_applicable_empty
-  [DecidableEq α] [LinearOrder α]
-  (R : Finset (Rule α)) (I : Finset α) :
-  step2 R I = I ↔ applicable R I = ∅ := by
-  classical
-  constructor
-  · intro h
-    cases hnh : nextHead? R I with
-    | none   =>
-      simp
-      intro x hx hhx
-      dsimp [nextHead?] at hnh
-      simp at hnh
-      simp_all only
-
-    | some a =>
-        -- some の場合は step2 = insert a I なので不動点は無理
-        have hii: I = insert a I := by simpa [step2, hnh] using h.symm
-        -- 矛盾から空を導く（好みで `nextHead?_spec_none` を使う形にしてOK）
-        exact False.elim <| by
-          have : a ∈ insert a I := by simp
-          have : a ∈ I := by
-            rw [←hii] at this
-            exact this
-          rcases nextHead?_spec_some (R:=R) (I:=I) (a:=a) hnh with ⟨haNot, _⟩
-          exact haNot this
-  · intro h
-    -- applicable 空 ⇒ nextHead? = none ⇒ 据え置き
-    have : nextHead? R I = none := by
-      unfold nextHead?
-      simp
-      intro x a a_1
-      simp_all only [applicable, filter_eq_empty_iff, not_and, Decidable.not_not]
-    simp [step2, this]
-
-omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
-lemma ssubset_step2_of_applicable_nonempty
-  [DecidableEq α] [LinearOrder α]
-  {R : Finset (Rule α)} {I : Finset α}
-  (hne : (applicable R I).Nonempty) :
-  I ⊂ step2 R I := by
-  classical
-  refine ⟨step2_superset R I, ?_⟩
-  -- nextHead? = some a, その a は I に入っていないので真に増える
-  obtain ⟨a, ha⟩ : ∃ a, nextHead? R I = some a := by
-    -- heads 非空から some を取る（applicable 非空 ⇒ heads 非空）
-    unfold nextHead?
-    have : ((applicable R I).image (fun t => t.head)).Nonempty :=
-      Finset.image_nonempty.mpr hne
-    simp
-    let S : Finset (Rule α) := {t ∈ R | t.prem ⊆ I ∧ t.head ∉ I}
-
-    -- hne : (applicable R I).Nonempty から S.Nonempty を作る
-    have happ : S.Nonempty := by
-      rcases hne with ⟨r, hr⟩
-      -- hr : r ∈ applicable R I
-      -- applicable を展開
-      change r ∈ R.filter (fun t => t.prem ⊆ I ∧ t.head ∉ I) at hr
-      -- 目標は r ∈ S だが，S はちょうど同じ filter 記法
-      refine ⟨r, ?_⟩
-      change r ∈ R.filter (fun t => t.prem ⊆ I ∧ t.head ∉ I)
-      exact hr
-
-    -- 画像の非空性
-    have himg : (image (fun t => t.head) S).Nonempty :=
-      Finset.image_nonempty.mpr happ
-
-    -- a を「その画像の min'」として取る
-    refine ⟨(image (fun t => t.head) S).min' himg, ?_, ?_⟩
-    · -- Nonempty の証人
-      exact happ
-    · -- min' の定義通り
-      rfl
-
-  rcases nextHead?_spec_some (R:=R) (I:=I) (a:=a) ha with ⟨ha_notI, -⟩
-  intro hEq
-  have : a ∈ I := by
-    have : a ∈ step2 R I := by
-      simp [step2, ha]
-    exact hEq this
-
-
-  exact ha_notI this
-
-/-
---以下は成り立たない。反例あり。
-lemma iter2_mono_in_I
-  [DecidableEq α] [Fintype α] [LinearOrder α]
-  (R : Finset (Rule α)) (k : ℕ) :
-  Monotone (fun I => iter2 R I k) := by
--/
-
-omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
-lemma applicable_lift_of_head_notin
-  [DecidableEq α]
-  {R : Finset (Rule α)} {I J : Finset α}
-  (hIJ : I ⊆ J) {t : Rule α}
-  (ht : t ∈ applicable R I) (hnotJ : t.head ∉ J) :
-  t ∈ applicable R J := by
-  rcases Finset.mem_filter.mp ht with ⟨hR, ⟨hprem, _⟩⟩
-  refine Finset.mem_filter.mpr ?_
-  refine ⟨hR, ⟨?premJ, hnotJ⟩⟩
-  intro x hx
-  exact hIJ (hprem hx)
-
-/- なりたたない。けしてよい。
-lemma applicable_mono
-  [DecidableEq α] {R : Finset (Rule α)} {I J : Finset α}
-  (hIJ : I ⊆ J) : applicable R I ⊆ applicable R J := by
-  intro t ht; rcases Finset.mem_filter.mp ht with ⟨hR, hcond⟩
-  rcases hcond with ⟨hprem, hnot⟩
-  refine Finset.mem_filter.mpr ?_
-  exact ⟨hR, ⟨by exact fun x hx => hIJ (hprem hx), by
-    -- `t.head ∉ I` から `t.head ∉ J` を言う必要はない（「適用可能」は `head ∉ I` 条件なので
-    -- J 側では「もっと入っている」ため `head ∉ J` は generally false。ここは `applicable` の定義次第。
-    -- もし J 側の適用条件が `head ∉ J` を要求するなら、この補題は「⊆」ではなく別の使い方になります。
-    dsimp [applicable] at ht
-    simp at ht
-
-    admit⟩⟩
--/
-
-omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
-lemma enter_at_iter2_exists_rule
-  [DecidableEq α] [LinearOrder α]
-  {R : Finset (Rule α)} {I : Finset α} {x : α}
-  (hx : x ∈ step2 R I \ I) :
-  ∃ r ∈ R, r.prem ⊆ I ∧ r.head = x := by
-  classical
-  -- step2 で some a を入れて x=a、`nextHead?_spec_some` を使う
-  rcases Finset.mem_sdiff.mp hx with ⟨hx_step, hx_notI⟩
-  cases h : nextHead? R I with
-  | none =>
-    have hI : x ∈ I := by
-
-      -- step2 を展開（match を hnh で解消）
-      simp [step2] at hx_step
-      simp_all only [mem_sdiff, not_false_eq_true, and_true]
-    exact False.elim (hx_notI hI)
-
-  | some a =>
-      have hx_ins : x ∈ insert a I := by simpa [step2, h] using hx_step
-      rcases Finset.mem_insert.mp hx_ins with hx_eq | hx_inI
-      · subst hx_eq
-        rcases nextHead?_spec_some (R:=R) (I:=I) h with ⟨_, ⟨r, hrR, hrPrem, hrHead⟩⟩
-        exact ⟨r, hrR, hrPrem, by exact hrHead⟩
-      · exact (hx_notI hx_inI).elim
-
-omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
-lemma frozen_forever_of_none
-  [DecidableEq α] [LinearOrder α]
-  (R : Finset (Rule α)) {S : Finset α}
-  (h : nextHead? R S = none) :
-  ∀ m, (Nat.iterate (step2 R) m) S = S := by
-  intro m; induction m with
-  | zero => rfl
-  | succ m ih =>
-      -- step2 S = S, かつ以降も S に留まる
-      have : step2 R S = S := by simp [step2, h]
-      simp [Nat.iterate, ih, this]
-
-omit [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)] in
-lemma all_steps_increase_if_last_increases
-  [DecidableEq α] [LinearOrder α]
-  (R : Finset (Rule α)) (I : Finset α) (N : ℕ)
-  (hneq : iter2 R I N ≠ iter2 R I (N+1)) :
-  ∀ k ≤ N, iter2 R I k ≠ iter2 R I (k+1) := by
-  classical
-  intro k hk
-  by_contra heq
-  -- k 段で据え置きなら nextHead? = none
-  have hnone : nextHead? R (iter2 R I k) = none := by
-    -- `heq` を `step2` の定義に戻して評価すると `none` が出る
-    -- （`some` なら insert で絶対に変わるため）
-    cases hnh : nextHead? R (iter2 R I k) with
-    | none   => rfl
-    | some a =>
-      simp
-      set S := iter2 R I k
-
-      -- (k+1)段は step2
-      have hstep : iter2 R I (k+1) = step2 R S := by
-        -- S = iter2 R I k を使って定義展開
-        change iter2 R I (k+1) = step2 R (iter2 R I k)
-        simp [iter2]
-
-      -- heq：S = iter2 R I (k+1) なので、step2 R S = S が従う
-      have hfix : step2 R S = S := by
-        have : S = iter2 R I (k+1) := by
-          -- S の定義で置換
-          change iter2 R I k = iter2 R I (k+1) at heq
-          exact heq
-        -- S = (k+1)段 = step2 R S
-        have : S = step2 R S := this.trans hstep
-        exact this.symm
-
-      -- nextHead? = some a なら step2 は insert a
-      have hsomeS : nextHead? R S = some a := by
-        -- S の定義で置換
-        change nextHead? R (iter2 R I k) = some a at hnh
-        exact hnh
-      have hstep_some : step2 R S = insert a S := by
-        simp [step2, hsomeS]
-
-      -- 以上より insert a S = S
-      have hins_eq : insert a S = S := by
-        -- hfix : step2 R S = S と hstep_some を合成
-        apply Eq.trans
-        exact id (Eq.symm hstep_some)--hstep_some hfix
-        exact hfix
-
-      -- すると a ∈ S が出る（mem を等式で運ぶ）
-      have ha_in_S : a ∈ S := by
-        -- まず a ∈ insert a S
-        have ha_ins : a ∈ insert a S := Finset.mem_insert_self a S
-        -- (a ∈ insert a S) = (a ∈ S) に書き換え
-        have hmem_eq : (a ∈ insert a S) = (a ∈ S) :=
-          congrArg (fun s => a ∈ s) hins_eq
-        exact Eq.mp hmem_eq ha_ins
-
-      -- しかし spec_some から a ∉ S なので矛盾
-      have ha_notin : a ∉ S := by
-        rcases nextHead?_spec_some (R:=R) (I:=S) (a:=a) hsomeS with ⟨ha_not, _⟩
-        exact ha_not
-      exact ha_notin ha_in_S
-
-  -- 据え置き以降は永遠に据え置き → 特に N+1 段も等しい
-  set S := iter2 R I k with hS
-  have step_S : step2 R S = S := by
-    -- hnone から直ちに step2 R S = S
-    have : nextHead? R S = none := by
-      -- hnone を S に書き換え
-      have : nextHead? R (iter2 R I k) = none := hnone
-      simpa [hS] using this
-    -- step2 の定義
-    simp [step2, this]
-
-  -- d による帰納で iter2 (k + d) = S
-  have frozen_from_k : ∀ d : ℕ, iter2 R I (k + d) = S := by
-    intro d
-    induction' d with d ih
-    · -- d = 0
-      -- iter2 R I (k+0) = iter2 R I k = S
-      exact hS.symm
-    · -- d+1
-      -- iter2 (k+d+1) = step2 R (iter2 (k+d)) = step2 R S = S
-      have h1 : iter2 R I (k + d + 1) = step2 R (iter2 R I (k + d)) := by
-        -- iter2 の定義（k+d+1 段は 1 ステップ）
-        -- 注意: + の結合の整形が必要
-        have : k + d + 1 = (k + d) + 1 := by exact rfl
-        -- 上の等式で simp
-        simp [iter2]
-      calc
-        iter2 R I (k + d + 1)
-            = step2 R (iter2 R I (k + d)) := h1
-        _   = step2 R S := by
-                -- 直前の帰納仮定 ih : iter2 R I (k + d) = S
-                -- これを使って書き換え
-                -- `congrArg` で step2 の引数に等式を適用
-                have := congrArg (fun s => step2 R s) ih
-                exact this
-        _   = S := step_S
-
-  -- N = k + d に分解して、N と N+1 の両方が S に等しいことを示す
-  rcases Nat.exists_eq_add_of_le hk with ⟨d, rfl⟩
-  -- これで (k+d) 段と (k+d+1) 段の等号が出る
-  have hN  : iter2 R I (k + d)     = S := frozen_from_k d
-  have hN1 : iter2 R I (k + d + 1) = S := frozen_from_k (d+1)
-  -- したがって等しい
-  have hEqFinal :
-      iter2 R I (k + d) = iter2 R I (k + d + 1) := by
-    -- 2つの等式を合成
-    apply hN.trans hN1.symm
-
-  -- ところで N = k+d ≤ N なので、特に N= k+d。今の等式は N と N+1 の等式に他ならない。
-  -- これは hneq に反する（N は仮定の N）
-  -- 形式的には、k+d = N の置換は上で済んでいる（`rcases` で rfl を入れている）。
-  exact hneq hEqFinal
 
 /-古いバージョン。けしてよい
 lemma multiplicity_le_one_addedFamily_noA
@@ -2179,7 +1983,7 @@ lemma multiplicity_le_one_addedFamily
 
 
 
-end Twostem
+
 /-
 ---以下は検証用コード。しばらく残す。
 
