@@ -650,6 +650,7 @@ lemma syncCl_idem [Fintype α]
   -- 反包含で等号
   apply le_antisymm hmin hinfl
 
+/- syncCl_monotoneを使う。
 omit [Fintype α] [LinearOrder α] in
 lemma syncCl_mono [Fintype α]
   (R : Finset (Rule α)) :
@@ -660,6 +661,7 @@ lemma syncCl_mono [Fintype α]
   have h := parIter_mono (R:=R) (k:=Fintype.card α) hIJ
   -- 目標と同型なのでそのまま
   exact h
+-/
 
 /-- **閉包が等しいときの“最小一致段直前の 1 点化”**：
 `syncCl R' U = syncCl R' V` なら，最小の `k` で `parIter R' U k = parIter R' V k` が成り立つ。
@@ -1068,7 +1070,7 @@ lemma element_has_rule_in_closure [Fintype α] [DecidableEq α]
 
 
 
-
+---使っている。
 omit [LinearOrder α] in
 lemma head_not_in_syncCl_of_erase_witness[LinearOrder α] [Fintype α] [DecidableEq α]
   {ρ : RuleOrder α} {R : Finset (Rule α)} {B S : Finset α} {t : Rule α}
@@ -1094,7 +1096,7 @@ lemma head_not_in_syncCl_of_erase_witness[LinearOrder α] [Fintype α] [Decidabl
   have : r = t := hUC hrR ht (by exact hrHead)
   exact hrNe this
 
-
+--色々使っている。
 lemma head_from_Rerase_contra_first
   [DecidableEq α] [Fintype α] [LinearOrder α]
   (ρ : RuleOrder α) (R : Finset (Rule α)) (hUC : UC R)

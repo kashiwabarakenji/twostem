@@ -471,7 +471,7 @@ lemma union_singleton_cases
 
 
 -- (A) 追加仮定：等閉包で生じる“最小一致段直前の 1 点差”は必ず `t.head`. -/
-def OnlyTLastDiff (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) : Prop :=
+def OnlyTLastDiff [DecidableEq α] [Fintype α] [LinearOrder α] (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) : Prop :=
 ∀ {B S₁ S₂ : Finset α} {k : ℕ} {f : α},
   isWitness ρ R B S₁ t →
   isWitness ρ R B S₂ t →
@@ -682,7 +682,7 @@ omit [DecidableEq α] [Fintype α] [LinearOrder α] in
     (hFirst := hW1.right)
     (hHead  := by convert this)
 
-
+--bridgeなどでも使う。
 omit [LinearOrder α] [DecidableEq (Rule α)] in
 lemma exists_singleton_lastDiff_of_syncEq_strong
   {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R') (hNS : NoSwap R')

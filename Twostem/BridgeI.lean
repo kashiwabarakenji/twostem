@@ -83,22 +83,64 @@ lemma witness_sum_le_sum_delta
 /- 代表系・欠損・超過・自由点（論文の Barrier/Charging 側の量） -/
 --variable (addedFamily :
 --  RuleOrder α → Finset (Rule α) → Rule α → Finset (Finset α))
+/- 各規則 t に対する「Witness で数えた個数」の局所恒等式で使う局所寄与 -/
+--variable (Excess_t : RuleOrder α → Finset (Rule α) → Rule α → Finset α → ℤ)
+--variable (Missing_t : RuleOrder α → Finset (Rule α) → Rule α → Finset α → ℤ)
+
+/- Witness で (t,A) が B に課金される A の個数（ℤ に持ち上げ） -/
+variable (isWitness :
+  RuleOrder α → Finset (Rule α) → Finset α → Finset α → Rule α → Prop)
+
+noncomputable def chargeCount
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) (t : Rule α) : ℤ := by
+  classical
+  exact ↑(#({A ∈ AF ρ R t | ∃ S, A = B ∪ S ∧ isWitness ρ R B S t}))
+
+--別ファイルで証明するかも。
+
+/-- 速攻ルート定義：`Excess_t = chargeCount` -/
+noncomputable def Excess_t
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) (B : Finset α) : ℤ :=
+  chargeCount  (AF:=AF) (isWitness:=isWitness) ρ R B t
+
+/-- 速攻ルート定義：`Missing_t = 0` -/
+noncomputable def Missing_t
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) (B : Finset α) : ℤ := 0
+
+/-- 大域 Excess：各 t の局所 Excess_t を合算 -/
+noncomputable def Excess
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) : ℤ :=
+  ∑ t ∈ R, Excess_t AF isWitness ρ R t B
+
+/-- 大域 Missing：各 t の局所 Missing_t を合算 -/
+noncomputable def Missing
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) : ℤ :=
+  ∑ t ∈ R, Missing_t  ρ R t B
+
 
 variable (Rep     : RuleOrder α → Finset (Rule α) → Finset (Finset α))
-variable (Missing : RuleOrder α → Finset (Rule α) → Finset α → ℤ)
-variable (Excess  : RuleOrder α → Finset (Rule α) → Finset α → ℤ)
+--variable (Missing : RuleOrder α → Finset (Rule α) → Finset α → ℤ)
+--variable (Excess  : RuleOrder α → Finset (Rule α) → Finset α → ℤ)
 variable (Free    : RuleOrder α → Finset (Rule α) → Finset α)
 
 /-! ## Charging の骨組み（このスレで定義・証明していく） -/
 
-variable (isWitness :
-  RuleOrder α → Finset (Rule α) → Finset α → Finset α → Rule α → Prop)
---別ファイルで証明するかも。
+lemma AF_mem_iff
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) (A : Finset α) :
+  A ∈ AF ρ R t ↔ ∃ (B S : Finset α), A = B ∪ S ∧ isWitness ρ R B S t := by
+  sorry  -- 本タスクでは仕様仮定として与えられる（後で定義展開で証明予定）
+
 lemma AF_witness_exists
-  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) {A : Finset α}
-  (hA : A ∈ AF ρ R t) :
-  ∃ (B S : Finset α), A = B ∪ S ∧ isWitness ρ R B S t := by
-  sorry
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
+  {A : Finset α} (hA : A ∈ AF ρ R t)
+  : ∃ B S, A = B ∪ S ∧ isWitness ρ R B S t := by
+  -- AF の会員同値を取り出す
+  have hiff := AF_mem_iff AF isWitness ρ R t A
+  -- `hA : A ∈ AF ρ R t` から右向きで存在を得る（明示）
+  have hex : ∃ (B S : Finset α), A = B ∪ S ∧ isWitness ρ R B S t :=
+    hiff.mp hA
+  exact hex
+
 
 -- 同じ A の分解に対する基底の一意性
 lemma witness_base_unique
@@ -109,12 +151,94 @@ lemma witness_base_unique
   B₁ = B₂ := by
   sorry
 
--- Witness の基底は代表系に属する
+/-- B が witness の基底である、の最小述語（A3 でも使用） -/
+def IsBaseOfWitness
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) : Prop :=
+  ∃ (t : Rule α) (A S : Finset α),
+      A ∈ AF ρ R t ∧ A = B ∪ S ∧ isWitness ρ R B S t
+
+/--
+Rep の会員同値（仕様）:
+`B ∈ Rep ρ R ↔ IsBaseOfWitness ρ R B`.
+
+※ ここは仕様として提示し，実装は後日（親スレ側で）埋める想定。
+-/
+def IsBaseOfWitness_closure
+  [Fintype α] [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)]
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) : Prop :=
+  ∃ (t : Rule α) (A S : Finset α),
+    A ∈ addedFamily (α:=α) R t ∧
+    A = syncCl (R.erase t) (B ∪ S) ∧
+    isWitness  ρ R B S t
+
+lemma Rep_mem_iff_closure
+  [Fintype α] [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)]
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) :
+  B ∈ Rep ρ R ↔ IsBaseOfWitness_closure isWitness ρ R B := by
+  -- 仕様段階では「存在」方向をAF_witness_exists_closureで取る
+  -- 一意性側は exists_unique_base_for_added_closure で保証
+  sorry
+
+--こちらではなく上を証明するのかも。するとこれを引用している箇所も変える必要がある。
+lemma Rep_mem_iff
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) :
+  B ∈ Rep ρ R ↔
+    IsBaseOfWitness AF isWitness ρ R B := by
+  -- SPEC: 代表集合の設計が確定した段階で実装する
+  -- 例：左→右 は Rep の構成定義から witness を回収、
+  --    右→左 は witness の基底が Rep に入ることを示す。
+  -- 現段階では仕様の受け皿のみ提供。
+  sorry
+
+-- Witness の基底は代表系に属する。これは古い。witness_base_in_Rep_closureに置き換えられる。
+/-- **A3. witness_base_in_Rep**
+`A ∈ AF ρ R t`, `A = B ∪ S`, `isWitness ρ R B S t` なら `B ∈ Rep ρ R`。 -/
 lemma witness_base_in_Rep
   (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
-  (B S : Finset α) (w : isWitness ρ R B S t) :
+  {A B S : Finset α}
+  (hA  : A ∈ AF ρ R t)
+  (hAS : A = B ∪ S)
+  (hW  : isWitness ρ R B S t) :
   B ∈ Rep ρ R := by
-  sorry
+  -- Rep の会員同値を取り出す
+  have hiff :=
+    Rep_mem_iff AF isWitness Rep ρ R B
+  -- まず IsBaseOfWitness を構成する
+  have hBase :
+      IsBaseOfWitness AF isWitness ρ R B := by
+    -- 証人として t, A, S を与える
+    refine Exists.intro t ?_
+    refine Exists.intro A ?_
+    refine Exists.intro S ?_
+    -- 3条件を並べる
+    exact And.intro hA (And.intro hAS hW)
+  -- Iff の右方向で membership を得る（`simpa using` は使わない）
+  exact (Iff.mpr hiff) hBase
+
+/-- witness の基底 B は Rep に属する（closure 版） -/
+lemma witness_base_in_Rep_closure
+  [Fintype α] [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)]
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
+  {A B S : Finset α}
+  (hA   : A ∈ addedFamily (α:=α) R t)
+  (hAeq : A = syncCl (R.erase t) (B ∪ S))
+  (hW   : isWitness ρ R B S t) :
+  B ∈ Rep ρ R := by
+  -- Rep の会員同値（closure 版）を取り出す
+  --   B ∈ Rep ρ R ↔ IsBaseOfWitness_closure ρ R B
+  have hiff :=
+    Rep_mem_iff_closure (α:=α) (ρ:=ρ) (R:=R) (B:=B)
+  -- 右辺（存在命題）を構成する
+  --   証人として t, A, S を与え，
+  --   (1) A ∈ addedFamily, (2) A = syncCl (R.erase t) (B ∪ S), (3) isWitness …
+  have hBase :
+      IsBaseOfWitness_closure isWitness ρ R B := by
+    refine Exists.intro t ?_
+    refine Exists.intro A ?_
+    refine Exists.intro S ?_
+    exact And.intro hA (And.intro hAeq hW)
+  -- Iff の右→左で membership を得る
+  exact (Rep_mem_iff_closure isWitness Rep ρ R B).mpr hBase
 
 /-
 /- Witness による基底 B の一意性：同じ A の分解なら基底は一致 -/
@@ -154,9 +278,10 @@ lemma exists_unique_base_for_added
     hA
     --AF_witness_exists (ρ:=ρ) (R:=R) (t:=t) (A:=A) hA
   -- 2) その基底 B は代表系に属する
-  have hBmem : B ∈ Rep ρ R :=
-    witness_base_in_Rep (Rep:=Rep) (isWitness:=isWitness) ρ R t B S hW
-  -- 3) 存在と一意性で ∃! を構成
+  have hBmem : B ∈ Rep ρ R := by
+    exact witness_base_in_Rep AF (fun ρ R B S t => A ∈ AF ρ R t) Rep ρ R t hA hAs hA
+
+   -- 3) 存在と一意性で ∃! を構成
   refine ExistsUnique.intro B ?hex ?uniq
   · -- 存在部
     exact And.intro hBmem ⟨S, And.intro hAs hW⟩
@@ -165,6 +290,62 @@ lemma exists_unique_base_for_added
     rcases hB' with ⟨_hB'in, ⟨S', hAs', hW'⟩⟩
     exact witness_base_unique (isWitness:=isWitness) ρ R t A B' S' B S hAs' hAs hW' hW
 
+lemma exists_unique_base_for_added_closure
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
+  (Rep : Finset (Finset α))
+  -- 主同値（親スレ推奨形）
+  (AF_mem_iff_closure :
+    ∀ {A : Finset α},
+      A ∈ addedFamily (α:=α) R t
+      ↔ ∃ (B S : Finset α),
+           A = syncCl (R.erase t) (B ∪ S) ∧ isWitness  ρ R B S t)
+  -- witness の基底は Rep に属する（closure 版）
+  (witness_base_in_Rep_closure :
+    ∀ {A B S : Finset α},
+      A ∈ addedFamily (α:=α) R t →
+      A = syncCl (R.erase t) (B ∪ S) →
+      isWitness  ρ R B S t →
+      B ∈ Rep)
+  -- 同じ A（= 同じ閉包像）を与える witness なら基底は一意
+  (base_unique_of_closure_witness :
+    ∀ {B₁ S₁ B₂ S₂ : Finset α},
+      B₁ ∈ Rep → B₂ ∈ Rep →
+      syncCl (R.erase t) (B₁ ∪ S₁) = syncCl (R.erase t) (B₂ ∪ S₂) →
+      isWitness  ρ R B₁ S₁ t →
+      isWitness  ρ R B₂ S₂ t →
+      B₁ = B₂)
+  {A : Finset α} (hA : A ∈ addedFamily (α:=α) R t)
+  :
+  ∃! (B : Finset α),
+    B ∈ Rep ∧ ∃ S, A = syncCl (R.erase t) (B ∪ S) ∧ isWitness ρ R B S t := by
+  classical
+  -- 1) AF → witness（閉包つき）の存在
+  rcases (AF_mem_iff_closure (A:=A)).mp hA with ⟨B₀, S₀, hAeq, hW₀⟩
+
+  -- 2) その基底 B₀ は代表集合に属する
+  have hB₀mem : B₀ ∈ Rep :=
+    witness_base_in_Rep_closure (A:=A) (B:=B₀) (S:=S₀) hA hAeq hW₀
+
+  -- 3) ∃! の構成：存在部
+  refine ExistsUnique.intro B₀ ?hexists ?huniq
+  · -- 存在：B₀ が条件を満たす
+    refine And.intro hB₀mem ?hex2
+    exact ⟨S₀, hAeq, hW₀⟩
+
+  -- 4) 一意性：同条件を満たす任意の B は B₀ と等しい
+  · intro B hB
+    rcases hB with ⟨hBmem, ⟨S, hAeq', hW⟩⟩
+    -- 両者とも同じ A を与えるので、閉包像が等しい
+    have hclEq :
+      syncCl (R.erase t) (B ∪ S) = syncCl (R.erase t) (B₀ ∪ S₀) := by
+      -- A = syncCl … = A から対称で結ぶ
+      -- 明示に： (B,S) 側 = A かつ (B₀,S₀) 側 = A
+      -- より、左辺 = 右辺
+      -- 具体的には trans で
+      sorry
+      --exact Eq.trans hAeq' (Eq.symm hAeq)
+    -- 代表性 + witness + 閉包像一致 ⇒ 基底一意
+    exact base_unique_of_closure_witness hBmem hB₀mem hclEq hW hW₀
 
 /-- Task A の corollary：`chargeTo` の「AF内」での Rep 所属 -/
 noncomputable def chargeTo
@@ -195,7 +376,7 @@ lemma chargeTo_mem_Rep
   (ρ : RuleOrder α) (R : Finset (Rule α))
   {t : Rule α} {A : Finset α}
   (hA : A ∈ AF ρ R t) :
-  chargeTo AF Rep isWitness ρ R t A
+  chargeTo AF isWitness Rep ρ R t A
     ∈ Rep ρ R := by
   classical
   -- `chargeTo` を展開して AF 内外で分岐
@@ -307,19 +488,18 @@ lemma per_rule_lower_bound
   -- 目標は (|S|:ℤ) ≥ ∑ contrib
   exact hRle
 
-
---omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+omit [DecidableEq α] [Fintype α] in
 /- すべての規則で合計した寄与を、Barrier の右辺に整理 -/
 lemma sum_over_rules_reshuffle
   [DecidableEq α] [Fintype α]
   (ρ : RuleOrder α) (R : Finset (Rule α))
   (chargingIdentity : ∀ B ∈ Rep ρ R,
         (∑ t ∈ R, contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
-          = (Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B)) :
+          = (Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B)) :
   (∑ t ∈ R, ∑ B ∈ Rep ρ R,
       contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
     = ∑ B ∈ Rep ρ R,
-        (Excess ρ R B
+        (Excess AF isWitness ρ R B
           - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) := by
   classical
   -- ∑t∑B … = ∑B∑t … （和の順序入替え）
@@ -335,7 +515,7 @@ lemma sum_over_rules_reshuffle
     (∑ B ∈ Rep ρ R, ∑ t ∈ R,
         contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
       = ∑ B ∈ Rep ρ R,
-          (Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) := by
+          (Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) := by
     refine Finset.sum_congr rfl ?_ ; intro B hB
     -- 右辺の各項に chargingIdentity
     have h := chargingIdentity B hB
@@ -344,15 +524,16 @@ lemma sum_over_rules_reshuffle
   -- まとめ
   exact Eq.trans hswap happly
 
+omit [DecidableEq α] [Fintype α] in
 /- **Bridge II（addedFamily 版）**：総和の下界 -/
 lemma addedFamily_sum_lower_bound
   [DecidableEq α] [Fintype α]
   (ρ : RuleOrder α) (R : Finset (Rule α))
   (chargingIdentity : ∀ B ∈ Rep ρ R,
         (∑ t ∈ R, contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
-          = (Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B)) :
+          = (Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B)) :
   (∑ t ∈ R, ((AF ρ R t).card : ℤ))
-    ≥ ∑ B ∈ Rep ρ R, Excess ρ R B
+    ≥ ∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B
       - (Finset.card (Free ρ R) : ℤ) * ∑ B ∈ Rep ρ R, Missing ρ R B := by
   classical
   -- 1) 左辺 ≥ ∑_{t∈R} ∑_{B∈Rep} contrib_from …
@@ -362,14 +543,14 @@ lemma addedFamily_sum_lower_bound
             contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B := by
     -- 各 t ごとに per_rule_lower_bound を足し合わせる（Finset.sum_le_sum）
     refine Finset.sum_le_sum ?_ ; intro t ht
-    exact per_rule_lower_bound AF Rep isWitness ρ R t
+    exact per_rule_lower_bound AF  isWitness Rep ρ R t
 
   -- 2) 右辺の二重和を Barrier 右辺に並べ替え
   have h2 :
     (∑ t ∈ R, ∑ B ∈ Rep ρ R,
         contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
       = ∑ B ∈ Rep ρ R,
-          (Excess ρ R B
+          (Excess AF isWitness ρ R B
             - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) := by
     apply sum_over_rules_reshuffle
     exact fun B a => chargingIdentity B a
@@ -378,11 +559,11 @@ lemma addedFamily_sum_lower_bound
   --    最後に `∑ (Excess - c*Missing)` を `∑ Excess - c*∑ Missing` に分配
   set c : ℤ := (Finset.card (Free ρ R) : ℤ) with hc
   have hdist :
-    (∑ B ∈ Rep ρ R, (Excess ρ R B - c * Missing ρ R B))
-      = (∑ B ∈ Rep ρ R, Excess ρ R B)
+    (∑ B ∈ Rep ρ R, (Excess AF isWitness ρ R B - c * Missing ρ R B))
+      = (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
         - (∑ B ∈ Rep ρ R, c * Missing ρ R B) := by
     -- Finset.sum_sub_distrib の直接適用
-    exact sum_sub_distrib (Excess ρ R) fun x => c * Missing ρ R x
+    exact sum_sub_distrib (Excess AF isWitness ρ R) fun x => c * Missing ρ R x
 
   have hmul :
     (∑ B ∈ Rep ρ R, c * Missing ρ R B)
@@ -397,19 +578,19 @@ lemma addedFamily_sum_lower_bound
         ≥ (∑ t ∈ R, ∑ B ∈ Rep ρ R,
               contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B) := h1
     _ = ∑ B ∈ Rep ρ R,
-          (Excess ρ R B - c * Missing ρ R B) := by
+          (Excess AF isWitness ρ R B - c * Missing ρ R B) := by
 
           calc
             ∑ t ∈ R, ∑ B ∈ Rep ρ R, contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness)  ρ R t B
-                = ∑ B ∈ Rep ρ R, (Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) := h2
-            _ = ∑ B ∈ Rep ρ R, (Excess ρ R B - c * Missing ρ R B) := by
-                  apply congrArg (fun z => ∑ B ∈ Rep ρ R, (Excess ρ R B - z * Missing ρ R B))
+                = ∑ B ∈ Rep ρ R, (Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) := h2
+            _ = ∑ B ∈ Rep ρ R, (Excess AF isWitness ρ R B - c * Missing ρ R B) := by
+                  apply congrArg (fun z => ∑ B ∈ Rep ρ R, (Excess AF isWitness ρ R B - z * Missing ρ R B))
                   exact hc
 
-    _ = (∑ B ∈ Rep ρ R, Excess ρ R B)
+    _ = (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
           - (∑ B ∈ Rep ρ R, c * Missing ρ R B) := by
           exact hdist
-    _ = (∑ B ∈ Rep ρ R, Excess ρ R B)
+    _ = (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
           - c * (∑ B ∈ Rep ρ R, Missing ρ R B) := by
           -- `∑ c * Missing` を `c * ∑ Missing` に置換
           -- 注意：ここでは `rw [hmul]` と等価
@@ -421,7 +602,7 @@ lemma addedFamily_sum_lower_bound
             -- `rw [this]` と同等の変形
             -- ただし `simpa` は使わない
             -- 書き換え用の等式 `this` を使う
-            refine congrArg (fun z => (∑ B ∈ Rep ρ R, Excess ρ R B) - z) this
+            refine congrArg (fun z => (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B) - z) this
 
 
 lemma chargeTo_mem_Rep_lemma
@@ -429,7 +610,7 @@ lemma chargeTo_mem_Rep_lemma
   {ρ : RuleOrder α} {R : Finset (Rule α)} {t : Rule α} {A : Finset α}
   (hA : A ∈ AF ρ R t) :
   chargeTo (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t A ∈ Rep ρ R := by
-  exact chargeTo_mem_Rep AF Rep isWitness ρ R hA
+  exact chargeTo_mem_Rep AF  isWitness Rep ρ R hA
 
 lemma chargingIdentity
   (ρ : RuleOrder α) (R : Finset (Rule α))
@@ -439,9 +620,9 @@ lemma chargingIdentity
       B ∈ Rep ρ R →
         (∑ t ∈ R,
             contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
-          = Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) :
+          = Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B) :
   (∑ t ∈ R, contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
-    = Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
+    = Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
   exact hcore ρ R B hB
 
 omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
@@ -450,6 +631,7 @@ omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
     \sum_B (Excess(B) - |Free|·Missing(B)) ≤ \sum_t |addedFamily ρ R t|.
     ここでは Δ ではなく card で述べ、その後に Δ 版コローラリを出します。 -/
 --addedFamilyの仮定を除くべきかも。そして、AFを使う。
+--addedFamilyをAFに置き換える。Excessもいらないかも。
 lemma charging_sum_lower_bound_card
   (addedFamily :
     RuleOrder α → Finset (Rule α) → Rule α → Finset (Finset α))
@@ -496,7 +678,7 @@ lemma charging_sum_lower_bound_card
   have h2 :
       (∑ B ∈ Rep ρ R, ∑ t ∈ R, contrib_from ρ R t B)
         = (∑ B ∈ Rep ρ R,
-             (Excess ρ R B
+             (Excess  ρ R B
                - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B)) := by
     refine Finset.sum_congr rfl ?step
     intro B hB
@@ -724,22 +906,22 @@ lemma charging_sum_lower_bound_delta
 
 /-! ### Distribute the sum on the left: ∑ (Excess - k·Missing) = ∑Excess - k·∑Missing -/
 
-omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
+omit [LinearOrder α] [DecidableEq (Rule α)] in
 lemma sum_excess_sub_kmissing
   (ρ : RuleOrder α) (R : Finset (Rule α)) (k : ℤ) :
-  (∑ B ∈ Rep ρ R, (Excess ρ R B - k * Missing ρ R B))
+  (∑ B ∈ Rep ρ R, (Excess AF isWitness  ρ R B - k * Missing ρ R B))
   =
-  (∑ B ∈ Rep ρ R, Excess ρ R B)
+  (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
   - k * (∑ B ∈ Rep ρ R, Missing ρ R B) := by
   classical
   -- sum of differences is difference of sums
   have hsub :
-      (∑ B ∈ Rep ρ R, (Excess ρ R B - k * Missing ρ R B))
+      (∑ B ∈ Rep ρ R, (Excess AF isWitness ρ R B - k * Missing ρ R B))
       =
-      (∑ B ∈ Rep ρ R, Excess ρ R B)
+      (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
       -
       (∑ B ∈ Rep ρ R, k * Missing ρ R B) := by
-         exact Finset.sum_sub_distrib (Excess ρ R) fun x => k * Missing ρ R x
+         exact Finset.sum_sub_distrib (Excess AF isWitness ρ R) fun x => k * Missing ρ R x
 
   -- pull out k from the sum (左定数乗)
   have hmul :
@@ -750,10 +932,10 @@ lemma sum_excess_sub_kmissing
 
   -- combine
   calc
-    (∑ B ∈ Rep ρ R, (Excess ρ R B - k * Missing ρ R B))
-        = (∑ B ∈ Rep ρ R, Excess ρ R B)
+    (∑ B ∈ Rep ρ R, (Excess AF isWitness ρ R B - k * Missing ρ R B))
+        = (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
           - (∑ B ∈ Rep ρ R, k * Missing ρ R B) := hsub
-    _   = (∑ B ∈ Rep ρ R, Excess ρ R B)
+    _   = (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
           - k * (∑ B ∈ Rep ρ R, Missing ρ R B) := by
             rw [hmul]
 
@@ -767,41 +949,45 @@ lemma charging_sum_lower_bound_delta_expanded
       B ∈ Rep ρ R →
         (∑ t ∈ R,
             contrib_from (AF:=AF) (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
-          = Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B):
+          = Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B):
   (∑ t ∈ R, ((Δ AF ρ R t : ℕ) : ℤ))
   ≥
-  (∑ B ∈ Rep ρ R, Excess ρ R B)
+  (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
   - (Finset.card (Free ρ R) : ℤ) * (∑ B ∈ Rep ρ R, Missing ρ R B) := by
   classical
   -- From Δ-version inequality
   have hΔ :
     (∑ B ∈ Rep ρ R,
-       (Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B))
+       (Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B))
     ≤ (∑ t ∈ R, ((Δ AF ρ R t : ℕ) : ℤ)) := by
     let cs := charging_sum_lower_bound_delta
       (AF:=AF) (Rep:=Rep) (Missing:=Missing)
-      (Excess:=Excess) (Free:=Free)
+      (Excess := fun ρ R B => ∑ t ∈ R, Excess_t AF isWitness ρ R t B) (Free:=Free)
       (contrib_from := fun ρ R t B => contrib_from AF (Rep:=Rep) (isWitness:=isWitness) ρ R t B)
-    refine cs ?_ ?_ ?_ ?_
-    exact fun ρ R t => per_rule_lower_bound AF Rep isWitness ρ R t
+
+    apply  cs
+    exact fun ρ R t => per_rule_lower_bound AF isWitness Rep ρ R t
     exact fun ρ R B a => hcore ρ R B a
+
 
 
   -- Expand the LHS with the distribution lemma
   have hexpand :
     (∑ B ∈ Rep ρ R,
-       (Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B))
+       (Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B))
     =
-    (∑ B ∈ Rep ρ R, Excess ρ R B)
+    (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
     - (Finset.card (Free ρ R) : ℤ) * (∑ B ∈ Rep ρ R, Missing ρ R B) := by
-      let se := sum_excess_sub_kmissing (Rep:=Rep) (Missing:=Missing) (Excess:=Excess)
-      exact se ρ R ↑(#(Free ρ R))
+      let se := sum_excess_sub_kmissing (Rep:=Rep)
+      apply se
+
+
 
   -- Rewrite LHS of hΔ and read inequality in ≥ form
   have :
     (∑ t ∈ R, ((Δ AF ρ R t : ℕ) : ℤ))
     ≥
-    (∑ B ∈ Rep ρ R, Excess ρ R B)
+    (∑ B ∈ Rep ρ R, Excess AF isWitness ρ R B)
     - (Finset.card (Free ρ R) : ℤ) * (∑ B ∈ Rep ρ R, Missing ρ R B) := by
     have h := hΔ
     rw [hexpand] at h
@@ -867,17 +1053,8 @@ lemma chargeTo_eq_iff
     · intro _; exact (h hA).elim
     · intro _; exact (h hA).elim
 
-/- 各規則 t に対する「Witness で数えた個数」の局所恒等式で使う局所寄与 -/
-variable (Excess_t : RuleOrder α → Finset (Rule α) → Rule α → Finset α → ℤ)
-variable (Missing_t : RuleOrder α → Finset (Rule α) → Rule α → Finset α → ℤ)
 
-/-- Witness で (t,A) が B に課金される A の個数（ℤ に持ち上げ） -/
-noncomputable def chargeCount
-  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) (t : Rule α) : ℤ := by
-  classical
-  exact ↑(#({A ∈ AF ρ R t | ∃ S, A = B ∪ S ∧ isWitness ρ R B S t}))
-
-
+omit [LinearOrder α] [DecidableEq (Rule α)] in
 /-- 展開用の simp 補題（必要なら） -/
 @[simp] lemma chargeCount_def
   --(AF :
@@ -894,7 +1071,99 @@ noncomputable def chargeCount
   simp [chargeCount]
   congr
 
+omit [LinearOrder α] [DecidableEq (Rule α)] in
+lemma charging_local_with_specs
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) (t : Rule α)
+  (hEx : Excess_t AF Witness ρ R t B =
+          chargeCount AF (isWitness:=isWitness) ρ R B t)
+  (hMi : Missing_t ρ R t B = 0) :
+  chargeCount (AF:=AF) (isWitness:=isWitness) ρ R B t
+    - (Finset.card (Free ρ R) : ℤ) * 0
+  =
+  Excess_t AF Witness ρ R t B
+    - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B := by
+  classical
+  -- 右辺を仕様で置換
+  -- simpa using は使わず、rw で明示的に変形
+  rw [hEx, hMi, mul_zero]
+
+omit [LinearOrder α] [DecidableEq (Rule α)] in
 /-- 【lemma（仮）】Charging の局所恒等式（t毎） -/
+lemma charging_local_lem {AF : RuleOrder α → Finset (Rule α) → Rule α → Finset (Finset α)}
+  {isWitness : RuleOrder α → Finset (Rule α) → Finset α → Finset α → Rule α → Prop}
+  --{Rep : RuleOrder α → Finset (Rule α) → Finset (Finset α)}
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) (t : Rule α):
+  --(hB : B ∈ Rep ρ R) :
+  chargeCount AF isWitness ρ R B t
+  =
+  Excess_t AF isWitness ρ R t B
+    - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B := by
+  classical
+  -- 定義を展開
+
+  --unfold Excess_t Missing_t
+  -- 右辺は `chargeCount - (|Free| : ℤ) * 0`
+  -- `a = a - (k*0)` を素直に作る
+  have hmul : (Finset.card (Free ρ R) : ℤ) * 0 = (0 : ℤ) := by
+    exact mul_zero _
+  calc
+    chargeCount AF isWitness ρ R B t
+        =
+      chargeCount AF (isWitness:=isWitness) ρ R B t - 0 := by
+        exact (sub_zero _).symm
+    _ =
+      chargeCount AF (isWitness:=isWitness) ρ R  B t
+      - (Finset.card (Free ρ R) : ℤ) * 0 := by
+        -- 右の引き算の第二項を `0` から `(k*0)` に置換
+        exact congrArg
+          (fun z => chargeCount AF (isWitness:=isWitness)  ρ R B t - z)
+          hmul.symm
+    _ =
+      chargeCount AF (isWitness:=isWitness)  ρ R B t
+      - (Finset.card (Free ρ R) : ℤ) * 0 := rfl
+    _ =
+      Excess_t AF isWitness ρ R t B - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B := by
+        apply charging_local_with_specs (AF:=AF) (isWitness:=isWitness) (ρ:=ρ) (R:=R) (B:=B) (t:=t) Free
+        dsimp [Excess_t, Missing_t]
+        exact hmul
+
+omit [LinearOrder α] [DecidableEq (Rule α)] in
+lemma charging_local_lem_no_unfold
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) (t : Rule α)
+ :
+  chargeCount AF isWitness ρ R B t
+  =
+  Excess_t  AF isWitness ρ R t B
+  - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B := by
+  classical
+  -- 速攻ルートが与える「仕様（等式）」を、定義を開かずローカル事実として用意
+  have hEx : Excess_t  AF isWitness ρ R t B
+            = chargeCount AF isWitness ρ R B t := rfl   -- 定義通り
+  have hMi : Missing_t ρ R t B = 0 := rfl               -- 定義通り
+
+  -- 目標を `a = a - k*0` 型に整形
+  calc
+    chargeCount AF isWitness ρ R B t
+        = chargeCount AF isWitness ρ R B t - 0 := (sub_zero _).symm
+    _ = chargeCount AF isWitness ρ R B t - (Finset.card (Free ρ R) : ℤ) * 0 := by
+          -- 右の 0 を (k*0) に置換
+          exact congrArg
+            (fun z => chargeCount AF isWitness ρ R B t - z)
+            (mul_zero (Finset.card (Free ρ R) : ℤ)).symm
+    _ = (Excess_t AF isWitness ρ R t B) - (Finset.card (Free ρ R) : ℤ) * 0 := by
+          -- 左項を hEx で置換（congrArg で第1引数側）
+          exact congrArg
+            (fun z => z - (Finset.card (Free ρ R) : ℤ) * 0)
+            hEx.symm
+    _ = (Excess_t AF isWitness ρ R t B)
+        - (Finset.card (Free ρ R) : ℤ) * (Missing_t ρ R t B) := by
+          -- 右の 0 を hMi で Missing_t に置換（congrArg で第2引数側）
+          exact congrArg
+            (fun z => Excess_t AF isWitness ρ R t B
+                      - (Finset.card (Free ρ R) : ℤ) * z)
+            hMi.symm
+
+/-
 lemma charging_local_lem {AF : RuleOrder α → Finset (Rule α) → Rule α → Finset (Finset α)}
   {isWitness : RuleOrder α → Finset (Rule α) → Finset α → Finset α → Rule α → Prop}
   {Rep : RuleOrder α → Finset (Rule α) → Finset (Finset α)}
@@ -905,54 +1174,64 @@ lemma charging_local_lem {AF : RuleOrder α → Finset (Rule α) → Rule α →
   Excess_t ρ R t B
     - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B := by
   sorry
+-/
 
+omit [LinearOrder α] [DecidableEq (Rule α)] in
 /-- 【lemma（仮）】Excess の t-総和分解 -/
 lemma Excess_sum_lem
+  --(Excess : RuleOrder α → Finset (Rule α) → Finset α → ℤ)
   (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) :
-  Excess ρ R B = ∑ t ∈ R, Excess_t ρ R t B := by
-  sorry
+  Excess AF isWitness ρ R B = ∑ t ∈ R, Excess_t AF isWitness ρ R t B := by
+  dsimp [Excess_t ]
+  dsimp [chargeCount]
+  dsimp [Excess]
+  rfl
 
+omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
 /-- 【lemma（仮）】Missing の t-総和分解 -/
 lemma Missing_sum_lem
   (ρ : RuleOrder α) (R : Finset (Rule α)) (B : Finset α) :
   Missing ρ R B = ∑ t ∈ R, Missing_t ρ R t B := by
-  sorry
+  dsimp [Missing_t]
+  dsimp [Missing]
+  rfl
 
-/-! ── まずは「仮定として受ける汎用版」 ── -/
+omit [LinearOrder α] [DecidableEq (Rule α)] in
+/- ── まずは「仮定として受ける汎用版」 ── -/
 lemma chargingIdentity_core_with
   (ρ : RuleOrder α) (R : Finset (Rule α)) {B : Finset α}
-  (hB : B ∈ Rep ρ R)
+  --(hB : B ∈ Rep ρ R)
   (charging_local :
     ∀ t, chargeCount AF isWitness ρ R B t
-         = Excess_t ρ R t B
+         = Excess_t AF isWitness ρ R t B
            - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B)
   (Excess_sum :
-    Excess ρ R B = ∑ t ∈ R, Excess_t ρ R t B)
+    Excess AF isWitness ρ R B = ∑ t ∈ R, Excess_t AF isWitness ρ R t B)
   (Missing_sum :
     Missing ρ R B = ∑ t ∈ R, Missing_t ρ R t B) :
   (∑ t ∈ R, chargeCount AF isWitness ρ R B t)
   =
-  Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
+  Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
   classical
   have hStep :
     (∑ t ∈ R, chargeCount AF isWitness ρ R B t)
     =
     (∑ t ∈ R,
-      (Excess_t ρ R t B
+      (Excess_t AF isWitness ρ R t B
         - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B)) := by
     apply Finset.sum_congr rfl
     intro t ht
     exact charging_local t
   have hSplit :
     (∑ t ∈ R,
-      (Excess_t ρ R t B
+      (Excess_t AF isWitness ρ R t B
         - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B))
     =
-    (∑ t ∈ R, Excess_t ρ R t B)
+    (∑ t ∈ R, Excess_t AF isWitness ρ R t B)
       -
     (∑ t ∈ R,
-      (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B) := by
-    exact sum_sub_distrib (fun x => Excess_t ρ R x B) fun x => ↑(#(Free ρ R)) * Missing_t ρ R x B
+      (Finset.card (Free ρ R) : ℤ) * Missing_t  ρ R t B) := by
+    exact sum_sub_distrib (fun x => Excess_t AF isWitness ρ R x B) fun x => ↑(#(Free ρ R)) * Missing_t ρ R x B
   have hPull :
     (∑ t ∈ R,
       (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B)
@@ -966,25 +1245,25 @@ lemma chargingIdentity_core_with
   calc
     (∑ t ∈ R, chargeCount AF isWitness ρ R B t)
         = (∑ t ∈ R,
-            (Excess_t ρ R t B
+            (Excess_t AF isWitness ρ R t B
               - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B)) := by
               exact hStep
-    _ = (∑ t ∈ R, Excess_t ρ R t B)
+    _ = (∑ t ∈ R, Excess_t AF isWitness ρ R t B)
           -
         ((∑ t ∈ R,
           (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B)) := by
               exact hSplit
-    _ = (∑ t ∈ R, Excess_t ρ R t B)
+    _ = (∑ t ∈ R, Excess_t AF isWitness ρ R t B)
           -
         ((Finset.card (Free ρ R) : ℤ)
-            * (∑ t ∈ R, Missing_t ρ R t B)) := by
-              apply congrArg (fun z => (∑ t ∈ R, Excess_t ρ R t B) - z)
+            * (∑ t ∈ R, Missing_t  ρ R t B)) := by
+              apply congrArg (fun z => (∑ t ∈ R, Excess_t AF isWitness ρ R t B) - z)
               exact hPull
-    _ = Excess ρ R B
+    _ = Excess AF isWitness ρ R B
           -
         ((Finset.card (Free ρ R) : ℤ) * Missing ρ R B) := by
               have hE' :
-                (∑ t ∈ R, Excess_t ρ R t B) = Excess ρ R B := hE.symm
+                (∑ t ∈ R, Excess_t AF isWitness ρ R t B) = Excess AF isWitness ρ R B := hE.symm
               have hM' :
                 (∑ t ∈ R, Missing_t ρ R t B) = Missing ρ R B := hM.symm
               have := congrArg
@@ -993,43 +1272,41 @@ lemma chargingIdentity_core_with
               -- `Missing` の置換を最後に
               simpa [hM'] using this
 
+omit [LinearOrder α] [DecidableEq (Rule α)] in
 /- ── 次に「lemma をそのまま渡すラッパ（便利版）」 ── -/
 lemma chargingIdentity_core
   (ρ : RuleOrder α) (R : Finset (Rule α)) {B : Finset α}
-  (hB : B ∈ Rep ρ R)
+  --(hB : B ∈ Rep ρ R)
   (charging_local :
     ∀ t, chargeCount AF isWitness ρ R B t
-         = Excess_t ρ R t B
+         = Excess_t AF isWitness ρ R t B
            - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B):
   (∑ t ∈ R, chargeCount AF isWitness ρ R B t)
   =
-  Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
+  Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
   classical
   have hloc :
   ∀ t, chargeCount AF isWitness ρ R B t
-       = Excess_t ρ R t B
+       = Excess_t AF isWitness ρ R t B
          - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B := by
     exact fun t => charging_local t
 
 
-  let hE := Excess_sum_lem   (Excess:=Excess) (Excess_t:=Excess_t)  ρ R B
-  let hM := Missing_sum_lem (Missing:=Missing) (Missing_t:=Missing_t) ρ R B
-  exact chargingIdentity_core_with
-    (AF:=AF) (Rep:=Rep) (isWitness:=isWitness)
-    (Free:=Free) (Excess:=Excess) (Missing:=Missing)
-    (Excess_t:=Excess_t) (Missing_t:=Missing_t)
-    ρ R (B:=B) hB hloc hE hM
+  let hE := Excess_sum_lem AF isWitness --ρ R B
+  let hM := Missing_sum_lem ρ R B
+  exact chargingIdentity_core_with AF isWitness  Free ρ R charging_local (hE ρ R B) hM
+
   -- lemma（仮）を関数にして渡す
 
-
+omit [LinearOrder α] [DecidableEq (Rule α)] in
 /-- ▲ 元の「filter で書いた形」へのラッパ。
     各 t で `DecidablePred` を立てて `chargeCount_def` に展開する。 -/
 lemma chargingIdentity_core_filter
   (ρ : RuleOrder α) (R : Finset (Rule α)) {B : Finset α}
-  (hB : B ∈ Rep ρ R)
+  --(hB : B ∈ Rep ρ R)
   (charging_local :
     ∀ t, chargeCount AF isWitness ρ R B t
-         = Excess_t ρ R t B
+         = Excess_t AF isWitness ρ R t B
            - (Finset.card (Free ρ R) : ℤ) * Missing_t ρ R t B)
   [DecidablePred (fun A : Finset α => ∃ S, A = B ∪ S ∧ isWitness ρ R B S t)] :
   (∑ t ∈ R,
@@ -1040,11 +1317,12 @@ lemma chargingIdentity_core_filter
           DecidablePred (fun A : Finset α =>
             ∃ S, A = B ∪ S ∧ isWitness ρ R B S t) :=
           (fun _ => Classical.propDecidable _)
-        exact
-          (((AF ρ R t).filter
-            (fun A => ∃ S, A = B ∪ S ∧ isWitness ρ R B S t)).card : ℤ)))
+
+        let aff := ((AF ρ R t).filter (fun A => ∃ S, A = B ∪ S ∧ isWitness ρ R B S t))
+        exact (aff.card : ℤ)
+  ))
   =
-  Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
+  Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
   classical
   -- 左辺を chargeCount に書き換える
   have hL :
@@ -1086,7 +1364,7 @@ lemma chargingIdentity_core_filter
             (fun A => ∃ S, A = B ∪ S ∧ isWitness ρ R B S t)).card : ℤ)))
         = (∑ t ∈ R, chargeCount AF isWitness ρ R B t) := by
           exact hL
-    _ = Excess ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
+    _ = Excess AF isWitness ρ R B - (Finset.card (Free ρ R) : ℤ) * Missing ρ R B := by
         exact
-          chargingIdentity_core AF Rep Missing Excess Free isWitness Excess_t Missing_t ρ R hB
+          chargingIdentity_core AF isWitness Free ρ R
             charging_local

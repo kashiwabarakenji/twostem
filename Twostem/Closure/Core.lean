@@ -142,7 +142,7 @@ lemma parIter_mono {α : Type*} [DecidableEq α][Fintype α]
       change x ∈ step R (parIter R J k)
       exact hx'
 
-
+omit [Fintype α] in
 lemma stepPar_mono (R : Finset (Rule α)) :
   Monotone (stepPar R) := by
   intro I J hIJ
@@ -250,7 +250,9 @@ lemma disjoint_union_eq_implies_right_eq
       · exact hxS1
     exact this
 
+
 /-! 補助：`stepPar R X = stepPar R Y` のとき、`X \ Y ⊆ fires R Y` / `Y \ X ⊆ fires R X` -/
+omit [Fintype α] in
 lemma diff_subset_fires_right
   {R : Finset (Rule α)} {X Y : Finset α}
   (hstep : stepPar R X = stepPar R Y) :
@@ -270,6 +272,7 @@ lemma diff_subset_fires_right
   | inl hInY  => exact (haNY hInY).elim
   | inr hInFY => exact hInFY
 
+omit [Fintype α] in
 lemma diff_subset_fires_left
   {R : Finset (Rule α)} {X Y : Finset α}
   (hstep : stepPar R X = stepPar R Y) :
@@ -290,6 +293,7 @@ lemma diff_subset_fires_left
   | inl hInX  => exact (haNX hInX).elim
   | inr hInFX => exact hInFX
 
+omit [Fintype α] in
 /-- **last-diff is singleton**：
 `k+1` 段で一致する（= 最小一致段を想定）とき、`k` 段の差はちょうど1点。-/
 lemma lastDiff_is_singleton
@@ -537,6 +541,14 @@ def violatesFirst (ρ : RuleOrder α) (R : Finset (Rule α))
   violates R t I ∧
   (∀ s, violates R s I → ρ.ruleIndex t ≤ ρ.ruleIndex s)
 
+lemma mem_of_violatesFirst
+  {ρ : RuleOrder α} {R : Finset (Rule α)} {t : Rule α} {I : Finset α} :
+  violatesFirst ρ R t I → t ∈ R := by
+  intro h
+  rcases h with ⟨hviol, _⟩
+  exact hviol.left
+
+omit [Fintype α] in
 --omit [DecidableEq α][Fintype α] [LinearOrder α] in
 lemma violates_not_closed {ρ} {R} {t : Rule α} {I}
   (h : violatesFirst ρ R t I) : ¬ IsClosed R I := by
@@ -600,7 +612,7 @@ lemma exists_first_violation
 --- ***********************/
 variable (Rep : Finset α)
 --def FreeOf (Rep : Finset α) : Finset α := (univ : Finset α) \ Rep
-/-- 自由座標（台は univ を想定） -/
+/- 自由座標（台は univ を想定） -/
 def FreeOf (Rep : Finset α) : Finset α :=
   (univ : Finset α) \ Rep
 
@@ -608,7 +620,19 @@ def isWitness [Fintype α] [DecidableEq α] [LinearOrder α] (ρ : RuleOrder α)
     (B S : Finset α) (t : Rule α) : Prop :=
   (S ⊆ FreeOf (α:=α) B) ∧ violatesFirst ρ R t (B ∪ S)
 
-/-- 候補：Free からとった部分集合で、t が first violation になるもの -/
+lemma isWitness_mem_in_R
+  [DecidableEq (Rule α)][Fintype α][LinearOrder α]
+  {ρ : RuleOrder α} {R : Finset (Rule α)} {B S : Finset α} {t : Rule α} :
+  isWitness ρ R B S t → t ∈ R := by
+  intro hW
+  rcases hW with ⟨ht, _rest⟩
+  have ht_in_R : t ∈ R := by
+    rcases _rest with ⟨hviol, _⟩
+    rcases hviol with ⟨htR, _hsub, _hnot⟩
+    exact htR
+  exact ht_in_R
+
+/- 候補：Free からとった部分集合で、t が first violation になるもの -/
 private noncomputable def witnessCandidates
   (ρ : RuleOrder α) (R : Finset (Rule α))
   (B : Finset α) (t : Rule α) : Finset (Finset α) :=

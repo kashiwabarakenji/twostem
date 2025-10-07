@@ -12,14 +12,16 @@ import Twostem.MainCore
 
 namespace Twostem
 
---addedFamilyの定義と、weak_liftingとhead_not_in_closure_of_eraseとisWitness_disjointは使うかもしれないが、そのあとは消しても影響ないかも。
+--addedFamilyの定義と、weak_liftingとhead_not_in_closure_of_eraseとisWitness_disjointは使うかもしれない。
+--別ルートの証明がコメントアウトされて残っていて、生きている補題も別ルートのための補題が多い。
+--本ルートで証明が完了するまでは残す。
 
 open scoped BigOperators
 open scoped symmDiff
 open Closure
 open Finset
 
-variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)]
+variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] [Fintype (Rule α)]
 
 --/***********************
 -- * 4. 弱化リフティング
@@ -169,27 +171,216 @@ lemma head_not_in_closure_of_erase
   -- しかし s = t なら erase に入れない
   exact hs_ne_t s_eq_t
 
+--------
+
+lemma mem_addedFamily_iff
+  [DecidableEq (Rule α)]
+  (R : Finset (Rule α)) (t : Rule α) (A : Finset α) [Fintype (Rule α)] :
+  A ∈ addedFamily (α:=α) R t
+  ↔ (IsClosed (R.erase t) A ∧ t.prem ⊆ A ∧ t.head ∉ A) := by
+  classical
+  unfold addedFamily
+  letI : DecidablePred (IsClosed (R.erase t)) :=
+    fun I => Classical.dec (IsClosed (R.erase t) I)
+  constructor
+  · intro h
+    have h' := Finset.mem_filter.mp h
+    have hclosed : IsClosed (R.erase t) A :=
+      (mem_Family (α:=α) (R:=(R.erase t)) (I:=A)).mp h'.left
+    exact And.intro hclosed h'.right
+  · intro h
+    haveI : DecidablePred (IsClosed (R.erase t)) :=
+      fun I => Classical.dec (IsClosed (R.erase t) I)
+    have hFam : A ∈ Family (R.erase t) := by
+      let mf := mem_Family (α:=α) (R:=(R.erase t)) (I:=A)
+      exact mf.mpr h.left
+    simp_all only [IsClosed, mem_erase, ne_eq, and_imp, mem_filter, not_false_eq_true, and_self, and_true]
+    obtain ⟨left, right⟩ := h
+    obtain ⟨left_1, right⟩ := right
+    convert hFam
+
+lemma syncCl_id_of_closed
+  [Fintype α]
+  (R : Finset (Rule α)) {I : Finset α}
+  (hI : IsClosed R I)
+  --(syncCl_closed  : ∀ (R : Finset (Rule α)) (I : Finset α), IsClosed R (syncCl (R:=R) I))
+  --(syncCl_min     : ∀ (R : Finset (Rule α)) {I J}, I ⊆ J → IsClosed R J → syncCl (R:=R) I ⊆ J)
+  --(syncCl_infl    : ∀ (R : Finset (Rule α)) (I : Finset α), I ⊆ syncCl (R:=R) I)
+  --(syncCl_idem    : ∀ (R : Finset (Rule α)) (I : Finset α), syncCl (R:=R) (syncCl (R:=R) I) = syncCl (R:=R) I)
+  : syncCl (R:=R) I = I := by
+  -- 片側：閉性の最小性
+  have hmin  : syncCl (R:=R) I ⊆ I :=
+    syncCl_min (R:=R) (I:=I) (J:=I) (by intro x hx; exact hx) hI
+  -- 逆側：inflationary
+  have hinfl : I ⊆ syncCl (R:=R) I := syncCl_infl (R:=R) I
+  exact Subset.antisymm (syncCl_min R (fun ⦃a⦄ a => a) hI) (syncCl_infl R I)
+
+lemma violatesFirst_of_added_core
+  [DecidableEq (Rule α)]
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
+  {A : Finset α}
+  (hA  : A ∈ addedFamily (α:=α) R t)
+  (ht  : t ∈ R)
+  (hMin : ∀ s, violates R s A → ρ.ruleIndex t ≤ ρ.ruleIndex s) :
+  violatesFirst ρ R t A := by
+  classical
+  -- addedFamily の素朴展開
+  have h := (mem_addedFamily_iff (R:=R) (t:=t) (A:=A)).mp hA
+  rcases h with ⟨_hClosed, hPrem, hHead⟩
+  -- 残りは定義通りに詰めるだけ
+  exact ⟨⟨ht, hPrem, hHead⟩, hMin⟩
+
+lemma first_min_of_added
+  [DecidableEq (Rule α)]  -- addedFamily の erase で必要
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
+  {A : Finset α}
+  --(ht : t ∈ R)
+  (hA : A ∈ addedFamily (α:=α) R t) :
+  ∀ s, violates R s A → ρ.ruleIndex t ≤ ρ.ruleIndex s := by
+  classical
+  -- addedFamily を展開
+  have hdef := (mem_addedFamily_iff (R:=R) (t:=t) (A:=A)).mp hA
+  rcases hdef with ⟨hClosed, hPrem_t, hHead_t⟩
+  -- 任意の違反 s について示す
+  intro s hs
+  rcases hs with ⟨hsR, hsPrem, hsHead⟩
+  -- s=t か s≠t で分岐
+  by_cases hst : s = t
+  · -- s = t なら反射律で終わり
+    rw [hst]
+  · -- s ≠ t の場合、s ∈ R.erase t なので閉性より head ∈ A、しかし violates と矛盾
+    have hs_in_erase : s ∈ R.erase t := by
+      -- Finset.mem_erase: x ∈ erase s a ↔ x ≠ a ∧ x ∈ s
+      exact Finset.mem_erase.mpr ⟨hst, hsR⟩
+    have : s.head ∈ A := hClosed (t := s) hs_in_erase hsPrem
+    exact (by
+      -- 矛盾から任意命題（特にルールインデックスの不等式）を示すには、
+      -- まず矛盾自体を導く必要がある。ここでは「hsHead : s.head ∉ A」と衝突。
+      -- したがってこの分岐は発生しえず、ケース分け全体としては s = t 側のみが残る。
+      -- しかし Lean 的にはこのブランチからは目標を直接示す必要があるので、
+      -- False.elim で閉じるのではなく、矛盾から何でも示せるわけにはいきません。
+      -- そこで、矛盾は「このブランチが起こらない」ことを示すので、
+      -- `cases` による分岐の前に `by_cases` を使っており、このブランチは
+      -- 実際には到達不能です：`exact (hsHead this).elim` で十分です。
+      exact (hsHead this).elim)
+
+lemma violatesFirst_of_added
+  [DecidableEq (Rule α)]
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
+  {A : Finset α}
+  --(hUC : UniqueChild α R)
+  (ht : t ∈ R)
+  (hA : A ∈ addedFamily (α:=α) R t)
+  (first_min_of_added :
+      ∀ s, violates R s A → ρ.ruleIndex t ≤ ρ.ruleIndex s) :
+  violatesFirst ρ R t A :=
+  violatesFirst_of_added_core (ρ:=ρ) (R:=R) (t:=t) (A:=A) hA ht first_min_of_added
+
+section
+--variable [Fintype α] [LinearOrder α] [DecidableEq (Rule α)]
+
+
+/-- 親スレ推奨形：閉包つき同値 --/
+lemma AF_mem_iff_closure
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) (A : Finset α)
+  (hUC : UniqueChild α R) (ht : t ∈ R) :
+  A ∈ addedFamily (α:=α) R t
+  ↔ ∃ (B S : Finset α),
+       A = syncCl (R.erase t) (B ∪ S) ∧ isWitness (α:=α) ρ R B S t := by
+  classical
+  constructor
+  · -- →：added → witness（B := A, S := ∅ で構成）
+    intro hA
+    -- added の展開
+    have h' := (mem_addedFamily_iff (R:=R) (t:=t) (A:=A)).mp hA
+    rcases h' with ⟨hClosed, hPrem, hHead⟩
+    -- 最小性：first_min_of_added を差し込む
+    have hMin : ∀ s, violates R s A → ρ.ruleIndex t ≤ ρ.ruleIndex s :=
+      first_min_of_added ρ R t (A:=A) hA
+    -- violatesFirst を組み立て
+    have hFirst : violatesFirst ρ R t A :=
+      And.intro ⟨ht, hPrem, hHead⟩ hMin
+    -- 閉包不動点：A = syncCl (R.erase t) A
+    have hFix : syncCl (R.erase t) A = A :=
+      syncCl_id_of_closed (R:=(R.erase t)) hClosed
+    -- 目的の等式（∅ での合併に直す）
+    have hEq : A = syncCl (R.erase t) (A ∪ (∅ : Finset α)) := by
+      -- A = syncCl (R.erase t) A かつ A ∪ ∅ = A を使って書き換え
+      have h₁ : A = syncCl (R.erase t) A := Eq.symm hFix
+      have h₂ : syncCl (R.erase t) A = syncCl (R.erase t) (A ∪ ∅) := by
+        -- 引数の等式 A = A ∪ ∅ の対称を `congrArg` で持ち上げる
+        have hu : A ∪ (∅ : Finset α) = A := Finset.union_empty _
+        exact congrArg (fun X => syncCl (R.erase t) X) hu.symm
+      exact Eq.trans h₁ h₂
+    -- ∅ ⊆ FreeOf A
+    have hSsub : (∅ : Finset α) ⊆ FreeOf (α:=α) A := by
+      intro x hx; cases (Finset.notMem_empty x) hx
+    -- witness を組み立て
+    refine Exists.intro A (Exists.intro (∅ : Finset α) ?_)
+    apply And.intro hEq
+    apply And.intro hSsub
+    simp
+    exact hFirst
+
+  · -- ←：witness → added
+    intro h
+    rcases h with ⟨B, S, hAeq, hW⟩
+    -- まず `A_closed`：syncCl は閉集合
+    have hClosedA : IsClosed (R.erase t) (syncCl (R.erase t) (B ∪ S)) :=
+      syncCl_closed (α:=α) (R:=(R.erase t)) (I:=B ∪ S)
+    -- `prem ⊆`：witness → violatesFirst → violates → prem ⊆ B∪S ⊆ syncCl …
+    rcases hW.right with ⟨hViol, _⟩
+    have hprem : t.prem ⊆ (B ∪ S) := hViol.right.left
+
+    -- inflationary（像が元を含む）で閉包へ押し上げる
+    have hInfl : (B ∪ S) ⊆ syncCl (R.erase t) (B ∪ S) :=
+      syncCl_infl (R:=R.erase t) (I:=B ∪ S)
+
+    -- 目的：t.prem ⊆ syncCl (R.erase t) (B ∪ S)
+    have hPremSub : t.prem ⊆ syncCl (R.erase t) (B ∪ S) := by
+      intro x hx
+      exact hInfl (hprem hx)
+
+    -- `head ∉`：既存補題を使用
+    have hHeadNot :
+      t.head ∉ syncCl (R.erase t) (B ∪ S) := by
+        let hni := head_not_in_syncCl_of_erase_witness (α:=α) (ρ:=ρ) (R:=R) (B:=B) (S:=S) (t:=t) hUC ht hW
+        convert hni
+
+    -- 以上を A へ転送して addedFamily 条件に詰める
+    have : IsClosed (R.erase t) A ∧ t.prem ⊆ A ∧ t.head ∉ A := by
+      -- `A = syncCl (R.erase t) (B ∪ S)` を使って書き換え
+      refine And.intro ?hC ?hRest
+      · -- 閉性
+        -- rw で差し替え
+        -- `rw [hAeq]` は `simpa using` を避けるために手で展開
+        have := hClosedA
+        -- 置換
+        simp_all only [IsClosed, mem_erase, ne_eq, and_imp, not_false_eq_true, implies_true]
+
+      · -- 残り2つ
+        have hPrem' :
+          t.prem ⊆ A := by
+          -- prem ⊆ syncCl … から A へ `rw`
+          -- （前段の hPremSub を書き換え）
+          simp_all only [IsClosed, mem_erase, ne_eq, and_imp]
+        have hHead' :
+          t.head ∉ A := by
+          -- head ∉ syncCl … から A へ `rw`
+          -- （hHeadNot を書き換え）
+          simp_all only [IsClosed, mem_erase, ne_eq, and_imp, not_false_eq_true]
+        exact And.intro hPrem' hHead'
+    -- `addedFamily` へ
+    have := (mem_addedFamily_iff (α:=α) R t A).mpr this
+    exact this
+
+
 --/***********************
 -- * 5. 多重度 ≤ 1（Two-Stem + UC）
 -- ***********************/
 
-omit [DecidableEq (Rule α)] in
-private lemma isWitness_disjoint
-  (ρ : RuleOrder α) (R : Finset (Rule α)) (B S : Finset α) (t : Rule α)
-  (hW : isWitness ρ R B S t) :
-  Disjoint B S := by
-  have hS_free : S ⊆ FreeOf B := hW.1
-  unfold FreeOf at hS_free
-  -- S ⊆ (univ \ B) ⇒ Disjoint B S
-  --dsimp [Disjoint, Finset.disjoint_iff_inter_eq_empty]
 
-  (expose_names; rw [subset_sdiff] at hS_free)
-  simp_all only [subset_univ, true_and]
-  rw [disjoint_iff] at hS_free ⊢
-  simp_all only [inf_eq_inter, bot_eq_empty]
-  rwa [inter_comm]
-
-----ここから後ろはほとんど使われてないものが並んでいる。
+----ここから後ろは昔のアプローチのものだが、復活する可能性あり。
 
 --使わないかも。
 omit [Fintype α] [DecidableEq (Rule α)] in
@@ -331,7 +522,7 @@ private lemma syncCl_eq_parIter_card
   apply Finset.Subset.antisymm_iff.mpr
   exact And.intro h1 h2
 
---コメントアウトしたものの中で使われている。
+--コメントアウトしたものの中で使われている。別ルートの重要な補題なので残す。
 omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
 private lemma exists_min_k_of_syncCl_ne
   [DecidableEq α] [Fintype α]
@@ -718,7 +909,7 @@ private lemma enter_at_iter2_exists_rule
         exact ⟨r, hrR, hrPrem, by exact hrHead⟩
       · exact (hx_notI hx_inI).elim
 
---コメントアウトしたものの中で使われている
+--コメントアウトしたものの中で使われている。必要か不要なもので使われている。
 omit [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] in
 private lemma frozen_forever_of_none
   [DecidableEq α] [LinearOrder α]
@@ -732,7 +923,7 @@ private lemma frozen_forever_of_none
       have : step2 R S = S := by simp [step2, h]
       simp [Nat.iterate, ih, this]
 
---コメントアウトしたものの中で、使われている
+--コメントアウトしたものの中で、使われている。必要性が不要なものの中で使われている。
 omit [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)] in
 private lemma all_steps_increase_if_last_increases
   [DecidableEq α] [LinearOrder α]
@@ -851,34 +1042,10 @@ private lemma all_steps_increase_if_last_increases
   -- 形式的には、k+d = N の置換は上で済んでいる（`rcases` で rfl を入れている）。
   exact hneq hEqFinal
 
-end Twostem
-/-
--- この補題の前提は矛盾している：
--- parIter R' U (k-1) = parIter R' V (k-1) なら、
--- parIter R' U k = stepPar R' (parIter R' U (k-1)) = stepPar R' (parIter R' V (k-1)) = parIter R' V k
--- となり hneq に矛盾する。
--- したがって前提が False を導くので、この補題は自明に成り立つ（ex falso quodlibet）。
-lemma singleton_symmDiff_at_first_diverge
-  [DecidableEq α] [Fintype α]
-  {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R') (hNS : NoSwap R')
-  {U V : Finset α} {k : ℕ}
-  (hk_pos : 0 < k)
-  (hprev : parIter R' U (k-1) = parIter R' V (k-1))
-  (hneq  : parIter R' U k ≠ parIter R' V k) :
-  ∃ x, ((parIter R' U k \ parIter R' V k) ∪
-        (parIter R' V k \ parIter R' U k)) = {x} := by
-  -- 前提が矛盾していることを示す
-  exfalso
-  apply hneq
-  -- parIter の定義を展開: parIter R' U k = parIter R' U ((k-1) + 1) = stepPar R' (parIter R' U (k-1))
-  have hk_succ : k = Nat.succ (k - 1) := (Nat.succ_pred_eq_of_pos hk_pos).symm
-  rw [hk_succ]
-  simp only [parIter]
-  -- hprev を使う
-  rw [hprev]
--/
 
-/-なりたたないとはいえないが、必要ない。
+
+
+--なりたたないとはいえないが、必要ない。以下の方針はよくないそう。
 lemma syncCl_eq_of_two_witnesses_ARoute
   [DecidableEq α] [Fintype α] [LinearOrder α]
   (ρ : RuleOrder α) (R : Finset (Rule α)) {B S₁ S₂ : Finset α} {t : Rule α}
@@ -910,7 +1077,7 @@ lemma syncCl_eq_of_two_witnesses_ARoute
     -- k=0でも同等の議論はできますが、以降の cause 補題を素直に使うため k>0 を推奨
     -- 既に k を「最初に食い違う正の段」として取る補題を使うとよいです
     -- （exists_min_pos_k_of_syncCl_ne のような補題）
-    admit
+    sorry
 
   -- 「段kで違う」から、どちらかの差は非空
   have hdiff_nonempty :
@@ -1004,8 +1171,906 @@ lemma syncCl_eq_of_two_witnesses_ARoute
   | inr hR =>
       -- 右枝は対称（U↔V, S₁↔S₂ を入れ替え）
       admit
+
+/-- weak_lifting（直接版）： すでにclosure版になっている。
+    witness から `J := syncCl (R.erase t) (B ∪ S)` を addedFamily に持ち上げ。 -/
+lemma weak_lifting_mem
+  (ρ : RuleOrder α) (R : Finset (Rule α))
+  (hUC : UC (R:=R))
+  (B S : Finset α) (t : Rule α)
+  (hW : isWitness ρ R B S t) :
+  t.prem ⊆ syncCl (R.erase t) (B ∪ S)
+  ∧ t.head ∉ syncCl (R.erase t) (B ∪ S)
+  ∧ syncCl (R.erase t) (B ∪ S) ∈ addedFamily R t := by
+  set R' := R.erase t
+  set I  := B ∪ S
+
+  -- witness から violatesFirst を取り出す
+  have hFirst : violatesFirst ρ R t I := by
+    -- isWitness の定義が (S ⊆ FreeOf B) ∧ violatesFirst … なので右成分だけ抜く
+    cases hW with
+    | intro _ hviol => exact hviol
+
+  -- (1) prem ⊆ syncCl
+  have hPrem_I : t.prem ⊆ I := by
+    -- violatesFirst の構成要素（prem ⊆ I）を取り出す
+    -- ここはプロジェクト側の定義に合わせて分解してください
+    -- 例： rcases hFirst with ⟨hInR, hPrem, hHeadNotIn, hMin⟩; exact hPrem
+    exact
+      (by
+        -- プレースホルダ：定義に応じて書き換える
+        -- hFirst から prem ⊆ I を取り出す補題/フィールドを使う
+        admit)
+  have hInfl : I ⊆ syncCl R' I := by
+    exact syncCl_infl (R := R') (I := I)
+  have hPrem_sync : t.prem ⊆ syncCl R' I := by
+    intro a ha
+    exact hInfl (hPrem_I ha)
+
+  -- (2) head ∉ syncCl
+  have hHead_not : t.head ∉ syncCl R' I := by
+    intro hIn
+    -- 既存補題：UC と violatesFirst から矛盾を出す
+    sorry
+    /-
+    exact head_not_in_syncCl_of_erase_witness (ρ := ρ) (R := R) (hUC := hUC)
+    (B := B) (S := S) (t := t) (hFirst := hFirst) (hHead := hIn)
+
+            (ρ := ρ) (R := R) (hUC := hUC)
+            (B := B) (S := S) (t := t)
+            (hFirst := hFirst) (hHead := hIn)
+    -/
+
+  -- (3) membership in addedFamily
+  -- addedFamily の定義が (Family R').filter (fun A => t.prem ⊆ A ∧ t.head ∉ A)
+  -- であることを使って、閉性＋(1)(2) を詰める
+  have hClosed : IsClosed R' (syncCl R' I) := by
+    exact syncCl_closed (R := R') (I := I)
+  have hInFamily : syncCl R' I ∈ Family (α := α) R' := by
+    -- mem_Family : I ∈ Family R' ↔ IsClosed R' I
+    -- simpa を使わずに書くなら：
+    -- まず等価式を使い、右→左を適用
+    have : IsClosed R' (syncCl R' I) := hClosed
+    -- `mem_Family.mp`/`.mpr` の向きに合わせて
+    exact (mem_Family (R := R') (I := syncCl R' I)).mpr this
+  have hPred : t.prem ⊆ syncCl R' I ∧ t.head ∉ syncCl R' I := by
+    exact And.intro hPrem_sync hHead_not
+  have hAdd : syncCl R' I ∈ addedFamily R t := by
+    -- addedFamily R t := (Family R').filter (fun A => t.prem ⊆ A ∧ t.head ∉ A)
+    -- よって mem_filter.mpr ⟨hInFamily, hPred⟩
+    -- ここは `unfold addedFamily` → `apply Finset.mem_filter.mpr` でも可
+    -- 定義名が異なる場合はそれに合わせて展開してください
+    admit
+
+  -- 連結
+  exact And.intro hPrem_sync (And.intro hHead_not hAdd)
+--noncomputable instance : DecidableEq (Rule α) := Classical.decEq _
+
+/-- NoTwoFreshHeads から、1ステップで増える部分の個数が高々1。 -/
+lemma new_card_le_one_of_NoTwoFreshHeads
+  [DecidableEq α] [Fintype α]
+  {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R')
+  (S : Finset α) (k : ℕ) :
+  (parIter R' S (k+1) \ parIter R' S k).card ≤ 1 := by
+  /- ★予定実装：
+     fires と stepPar / parIter の関係
+       (parIter R' S (k+1) \ parIter R' S k) ⊆ heads (fires R' (parIter R' S k))
+     を示し、card ≤ card fires ≤ 1 に落とす。 -/
+  sorry
+
+/-- 前段一致 A=B のもと、次段差は ΔU, ΔV の対称差と一致。 -/
+lemma next_diff_as_new_sdiff
+  [DecidableEq α] [Fintype α]
+  {R' : Finset (Rule α)} {U V : Finset α} {k : ℕ}
+  (hprev : parIter R' U k = parIter R' V k) :
+  let A  := parIter R' U k
+  let A' := parIter R' U (k+1)
+  let B  := parIter R' V k
+  let B' := parIter R' V (k+1)
+  let ΔU := A' \ A
+  let ΔV := B' \ B
+  (A' \ B') ∪ (B' \ A') = (ΔU \ ΔV) ∪ (ΔV \ ΔU) := by
+  /- ★予定実装：
+     A'=A∪ΔU, B'=B∪ΔV と ΔU∩A=∅, ΔV∩B=∅ を使い、
+     A'\B' = ΔU\ΔV, B'\A' = ΔV\ΔU を membership で示す。-/
+  sorry
+
+lemma exclusive_new_next_step
+  [DecidableEq α] [Fintype α]
+  {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R') (hNS : NoSwap R')
+  {U V : Finset α} {k : ℕ}
+  (hprev : parIter R' U k = parIter R' V k)
+  (hnext : parIter R' U (k+1) ≠ parIter R' V (k+1)) :
+  (∃ x,
+      parIter R' U (k+1) \ parIter R' U k = {x} ∧
+      parIter R' V (k+1) \ parIter R' V k = ∅) ∨
+  (∃ x,
+      parIter R' U (k+1) \ parIter R' U k = ∅ ∧
+      parIter R' V (k+1) \ parIter R' V k = {x}) := by
+  /- ★予定実装：
+     - hNTF から「各ステップの新顔は高々 1 点」
+     - hNS から「同時に別の新顔が両側で出る」ことの排除
+     - hprev : 前段一致, hnext : 次段不一致 を使って
+       3ケース（片側 {x}/他側 ∅）∨（対称）∨（両方 {x} だが同一点）を分類。
+       最後のケースは hnext と矛盾、よって前二者。
+  -/
+  classical
+  -- 記号
+  set A  := parIter R' U k
+  set A' := parIter R' U (k+1)
+  set B  := parIter R' V k
+  set B' := parIter R' V (k+1)
+  set ΔU := A' \ A
+  set ΔV := B' \ B
+  have hAB : A = B := hprev
+
+  -- 各側の新顔は高々1点（プレースホルダ①）
+  have hΔU_le1 : ΔU.card ≤ 1 :=
+    by
+      -- rewrite ΔU definition & apply placeholder
+      have := new_card_le_one_of_NoTwoFreshHeads (R':=R') hNTF U k
+      simpa [ΔU, A, A'] using this
+  have hΔV_le1 : ΔV.card ≤ 1 :=
+    by
+      have := new_card_le_one_of_NoTwoFreshHeads (R':=R') hNTF V k
+      simpa [ΔV, B, B'] using this
+
+  -- 次段で不一致 → 次段の対称差は非空
+  have hneq' : (A' \ B') ∪ (B' \ A') ≠ (∅ : Finset α) := by
+    intro hE
+    have : A' = B' := by
+      simp at hE
+      exact Subset.antisymm_iff.mpr hE
+    exact hnext this
+
+  -- さらに、(A'\B')∪(B'\A') は “ΔU, ΔV の対称差” に一致（プレースホルダ②）
+  have hSD_eq :
+    (A' \ B') ∪ (B' \ A') = (ΔU \ ΔV) ∪ (ΔV \ ΔU) := by
+    simpa [A, B, A', B', ΔU, ΔV] using
+      next_diff_as_new_sdiff (R':=R') (U:=U) (V:=V) (k:=k) hprev
+
+  -- 右辺の対称差が非空、かつ ΔU, ΔV は各々高々1点 ⇒
+  -- 可能性は (ΔU,ΔV) = ({x},∅) か (∅,{x}) の2つだけ
+  -- 場合分けで仕上げる
+  have hΔ_cases :
+      (∃ x, ΔU = {x} ∧ ΔV = ∅) ∨ (∃ x, ΔU = ∅ ∧ ΔV = {x}) := by
+    -- ここは Finset の場合分け：
+    --   card ΔU, card ΔV ∈ {0,1}, かつ 対称差非空 ⇒
+    --   (0,1) or (1,0) しかない（(1,1) は x≠y で card=2, x=y で card=0）
+    -- 既存の小補題がなければ、カード計算で10〜15行で閉じます。
+    sorry
+
+  -- 定義に戻して結論へ
+  cases hΔ_cases with
+  | inl hx =>
+      rcases hx with ⟨x, hU, hV⟩
+      left
+      refine ⟨x, ?_, ?_⟩ <;>
+      simp_all only [ne_eq, union_eq_empty, sdiff_eq_empty_iff_subset, not_and, A, B, A', B', ΔU, ΔV]
+
+  | inr hx =>
+      rcases hx with ⟨x, hU, hV⟩
+      right
+      refine ⟨x, ?_, ?_⟩ <;>
+      simp_all only [ne_eq, union_eq_empty, sdiff_eq_empty_iff_subset, not_and, A, B, A', B', ΔU, ΔV]
+
+lemma sdiff_result_of_exclusive_new_left
+  [DecidableEq α] [Fintype α]
+  {R' : Finset (Rule α)} {U V : Finset α} {k : ℕ} {x : α}
+  (hprev : parIter R' U k = parIter R' V k)
+  (hUnew : parIter R' U (k+1) \ parIter R' U k = {x})
+  (hVnew : parIter R' V (k+1) \ parIter R' V k = ∅) :
+  (parIter R' U (k+1) \ parIter R' V (k+1)) ∪
+  (parIter R' V (k+1) \ parIter R' U (k+1)) = {x} := by
+
+  -- 記号
+  set A  := parIter R' U k
+  set A' := parIter R' U (k+1)
+  set B  := parIter R' V k
+  set B' := parIter R' V (k+1)
+  have hAB : A = B := hprev
+  -- 分解：A' = A ∪ (A' \ A), B' = B ∪ (B' \ B)
+  have hA' : A' = A ∪ (A' \ A) := by
+    -- Finset.union_sdiff_of_subset : s ⊆ t → s ∪ (t \ s) = t
+    have := Finset.union_sdiff_of_subset (by
+      -- A ⊆ A'
+      change A ⊆ A'
+      exact parIter_mono_in_steps R' U k)
+    -- 形を A' = A ∪ (A' \ A) に揃える
+    exact this.symm
+  have hB' : B' = B ∪ (B' \ B) := by
+    have := Finset.union_sdiff_of_subset (by
+      change B ⊆ B'
+      exact parIter_mono_in_steps R' V k)
+    exact this.symm
+  -- B' は実は B（=A）
+  have hB'_eq_A : B' = A := by
+    -- hVnew : B' \ B = ∅
+    -- hAB : A = B
+    -- よって B' = B ∪ ∅ = B = A
+    calc
+      B' = B ∪ (B' \ B) := hB'
+      _  = B ∪ ∅       := by rw [hVnew]
+      _  = B            := by exact Finset.union_empty _
+      _  = A            := by exact hAB.symm
+  -- A' は A ∪ {x}
+  have hA'_eq : A' = A ∪ ({x} : Finset α) := by
+    calc
+      A' = A ∪ (A' \ A) := hA'
+      _  = A ∪ {x}      := by rw [hUnew]
+  -- `x ∉ A` を取り出す
+  have hx_notin_A : x ∉ A := by
+    -- x ∈ A' \ A は hUnew から
+    have hx_in_diff : x ∈ (A' \ A) := by
+      -- x ∈ {x}
+      have hx0 : x ∈ ({x} : Finset α) := Finset.mem_singleton_self _
+      -- hUnew : A' \ A = {x}
+      have hprop := congrArg (fun (S : Finset α) => x ∈ S) hUnew.symm
+      exact Eq.mp hprop hx0
+    exact (Finset.mem_sdiff.mp hx_in_diff).right
+  -- まず左差 A' \ B' = {x} を示す
+  have hleft : A' \ B' = ({x} : Finset α) := by
+    -- B' = A に置換
+    have : A' \ B' = A' \ A := by rw [hB'_eq_A]
+    -- A' = A ∪ {x} に置換
+    have : A' \ A = (A ∪ ({x} : Finset α)) \ A := by
+      -- ここで等式を両側に適用
+      exact congrArg (fun T => T \ A) hA'_eq
+    -- 目標へ
+    -- (A ∪ {x}) \ A = {x} （x ∉ A を使用）
+    -- membership で両側包含を示す
+    -- 左⊆右
+    apply Finset.Subset.antisymm_iff.mpr
+    constructor
+    · intro y hy
+      have hyA' : y ∈ A' := (Finset.mem_sdiff.mp (by
+        -- 戻す
+        exact by
+          -- 直接やる：hy : y ∈ A' \ B'，B' = A
+          -- から y ∈ A' \ A
+          have hy' : y ∈ A' \ A := by
+            simpa [hB'_eq_A] using hy
+          -- 以後 hy' を持って進める
+          exact hy') ).left
+      have hy_notA : y ∉ A := (Finset.mem_sdiff.mp (by
+        have hy' : y ∈ A' \ A := by
+          simpa [hB'_eq_A] using hy
+        exact hy')).right
+      -- y は A' にあるが A にない → y ∈ A'\A = {x}
+      have : y ∈ ({x} : Finset α) := by
+        -- A' \ A = {x}
+        have hprop := congrArg (fun (S : Finset α) => y ∈ S) hUnew
+        -- y ∈ A' \ A ↔ y ∈ {x}
+        have hy' : y ∈ A' \ A := by
+          simpa [hB'_eq_A] using hy
+        exact Eq.mp hprop hy'
+      exact (Finset.mem_singleton.mp this) ▸ (Finset.mem_singleton_self _)
+    · -- 右⊆左：x ∈ A' \ B'
+      intro y hy
+      -- hy : y ∈ {x} → y = x
+      have hyx : y = x := Finset.mem_singleton.mp hy
+      -- x ∈ A' ∧ x ∉ B' を示せばよい
+      -- x ∈ A' は A' = A ∪ {x} と x ∉ A から従う
+      have hx_in_A' : x ∈ A' := by
+        have : x ∈ A ∪ ({x} : Finset α) := by
+          apply Finset.mem_union.mpr
+          exact Or.inr (Finset.mem_singleton_self _)
+        -- A' = A ∪ {x}
+        exact by
+          have := congrArg (fun (S : Finset α) => x ∈ S) hA'_eq
+          subst hyx
+          simp_all only [sdiff_eq_empty_iff_subset, union_sdiff_self_eq_union, right_eq_union, union_singleton,
+            not_false_eq_true, insert_sdiff_cancel, mem_singleton, mem_insert, or_false, A, B, B', A']
+      have hx_notin_B' : x ∉ B' := by
+        -- B' = A、かつ x ∉ A
+        simpa [hB'_eq_A] using hx_notin_A
+      -- まとめて差集合
+      have : x ∈ A' \ B' := Finset.mem_sdiff.mpr ⟨hx_in_A', hx_notin_B'⟩
+      -- y = x で書き換え
+      exact by cases hyx; exact this
+  -- 次に右差 B' \ A' = ∅ を示す
+  have hright : B' \ A' = (∅ : Finset α) := by
+    -- B' = A
+    have : B' \ A' = A \ A' := by rw [hB'_eq_A]
+    -- A ⊆ A'（hUmono）より、A \ A' は空
+    -- membership で空を示す
+    apply Finset.eq_empty_iff_forall_notMem.mpr
+    intro y hy
+    have hyA : y ∈ A := by
+      simp_all only [sdiff_eq_empty_iff_subset, union_sdiff_self_eq_union, right_eq_union, union_singleton, not_false_eq_true,
+        insert_sdiff_cancel, mem_sdiff, mem_insert, not_or, A', A, B, B']
+    have hy_notA' : y ∉ A' := (Finset.mem_sdiff.mp hy).right
+    have : y ∈ A' := by
+        simp_all only [sdiff_eq_empty_iff_subset, union_sdiff_self_eq_union, right_eq_union, union_singleton, not_false_eq_true,
+      insert_sdiff_cancel, mem_sdiff, mem_insert, not_or, or_true, not_true_eq_false, A', A, B, B']
+
+    exact hy_notA' this
+  -- 結論
+  -- (A' \ B') ∪ (B' \ A') = {x} ∪ ∅ = {x}
+  calc
+    (A' \ B') ∪ (B' \ A') = ({x} : Finset α) ∪ (∅ : Finset α) := by
+      rw [hleft, hright]
+    _ = ({x} : Finset α) := by exact Finset.union_empty _
+
+lemma sdiff_result_of_exclusive_new_right
+  [DecidableEq α] [Fintype α]
+  {R' : Finset (Rule α)} {U V : Finset α} {k : ℕ} {x : α}
+  (hprev : parIter R' U k = parIter R' V k)
+  (hUnew : parIter R' U (k+1) \ parIter R' U k = ∅)
+  (hVnew : parIter R' V (k+1) \ parIter R' V k = {x}) :
+  (parIter R' U (k+1) \ parIter R' V (k+1)) ∪
+  (parIter R' V (k+1) \ parIter R' U (k+1)) = {x} := by
+  /- ★予定実装：上の左右対称版（同様の計算） -/
+  classical
+  -- 記号
+  set A  := parIter R' U k
+  set A' := parIter R' U (k+1)
+  set B  := parIter R' V k
+  set B' := parIter R' V (k+1)
+  have hAB : A = B := hprev
+
+  -- 1ステップ分解
+  have hA' : A' = A ∪ (A' \ A) :=
+    (Finset.union_sdiff_of_subset (by
+      exact parIter_mono_in_steps R' U k)).symm
+  have hB' : B' = B ∪ (B' \ B) :=
+    (Finset.union_sdiff_of_subset (by
+      exact parIter_mono_in_steps R' V k)).symm
+
+  -- 右：B' = A ∪ {x}、左：A' = A
+  have hA'_eq_A : A' = A := by
+    calc
+      A' = A ∪ (A' \ A) := hA'
+      _  = A ∪ ∅       := by rw [hUnew]
+      _  = A            := Finset.union_empty _
+  have hB'_eq : B' = A ∪ ({x} : Finset α) := by
+    calc
+      B' = B ∪ (B' \ B) := hB'
+      _  = B ∪ {x}      := by rw [hVnew]
+      _  = A ∪ {x}      := by simpa [hAB]
+
+  -- x ∉ A （hVnew から x ∈ B'\B、よって x ∉ B、A=B）
+  have hx_notin_A : x ∉ A := by
+    have hx_in_diff : x ∈ B' \ B := by
+      have hx0 : x ∈ ({x} : Finset α) := Finset.mem_singleton_self _
+      have hxprop := congrArg (fun (S : Finset α) => x ∈ S) hVnew.symm
+      exact Eq.mp hxprop hx0
+    have hx_notin_B : x ∉ B := (Finset.mem_sdiff.mp hx_in_diff).right
+    simpa [hAB] using hx_notin_B
+
+  -- 左差 A' \ B' = A \ (A ∪ {x}) = ∅
+  have hleft : A' \ B' = (∅ : Finset α) := by
+    -- B' と A' をそれぞれ置換
+    have : A' \ B' = A \ (A ∪ ({x} : Finset α)) := by
+      rw [hA'_eq_A, hB'_eq]
+    -- A ⊆ A ∪ {x} なので差は空
+    apply Finset.eq_empty_iff_forall_notMem.mpr
+    intro y hy
+    have hyA : y ∈ A := by
+      simp_all only [sdiff_eq_empty_iff_subset, union_sdiff_self_eq_union, right_eq_union, union_singleton, mem_sdiff,
+    mem_insert, not_or, A', A, B, B']
+    have hy_notUnion : y ∉ A ∪ ({x} : Finset α) :=
+      (Finset.mem_sdiff.mp (by simpa [this] using hy)).right
+    have hy_in_union : y ∈ A ∪ ({x} : Finset α) :=
+      Finset.mem_union.mpr (Or.inl hyA)
+    exact hy_notUnion hy_in_union
+
+  -- 右差 B' \ A' = {x}
+  have hright : B' \ A' = ({x} : Finset α) := by
+    -- 置換して (A ∪ {x}) \ A = {x}（x ∉ A）を示す
+    -- ⊆
+    apply Finset.Subset.antisymm_iff.mpr
+    constructor
+    · intro y hy
+      have hy' : y ∈ (A ∪ ({x} : Finset α)) \ A := by
+        simpa [hB'_eq, hA'_eq_A] using hy
+      have hy_notA : y ∉ A := (Finset.mem_sdiff.mp hy').right
+      have hy_in_union : y ∈ A ∪ ({x} : Finset α) :=
+        (Finset.mem_sdiff.mp hy').left
+      -- union の場合分け
+      have : y ∈ ({x} : Finset α) := by
+        rcases Finset.mem_union.mp hy_in_union with hyA | hyx
+        · exact False.elim (hy_notA hyA)
+        · exact hyx
+      exact (Finset.mem_singleton.mp this) ▸ (Finset.mem_singleton_self _)
+    · -- ⊇
+      intro y hy
+      have hyx : y = x := Finset.mem_singleton.mp hy
+      -- x は A ∪ {x} に入り、A には入らない
+      have hx_in_union : x ∈ A ∪ ({x} : Finset α) :=
+        Finset.mem_union.mpr (Or.inr (Finset.mem_singleton_self _))
+      have hx_in_sdiff : x ∈ (A ∪ ({x} : Finset α)) \ A :=
+        Finset.mem_sdiff.mpr ⟨hx_in_union, hx_notin_A⟩
+      simpa [hB'_eq, hA'_eq_A, hyx]
+
+  -- 仕上げ
+  calc
+    (parIter R' U (k+1) \ parIter R' V (k+1)) ∪
+      (parIter R' V (k+1) \ parIter R' U (k+1))
+        = (A' \ B') ∪ (B' \ A') := rfl
+    _ = (∅ : Finset α) ∪ ({x} : Finset α) := by
+      rw [hleft, hright]
+    _ = ({x} : Finset α) := Finset.empty_union _
+
+lemma singleton_symmDiff_next_diverge
+  [DecidableEq α] [Fintype α]
+  {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R') (hNS : NoSwap R')
+  {U V : Finset α} {k : ℕ}
+  (hprev : parIter R' U k = parIter R' V k)
+  (hnext : parIter R' U (k+1) ≠ parIter R' V (k+1)) :
+  ∃ x,
+    (parIter R' U (k+1) \ parIter R' V (k+1) ∪
+     parIter R' V (k+1) \ parIter R' U (k+1)) = {x} := by
+  classical
+  -- 「新顔」形状の排他ケースを取得（プレースホルダ）
+  have hcases :=
+    exclusive_new_next_step (R':=R') hNTF hNS (U:=U) (V:=V) (k:=k) hprev hnext
+  -- ケース分け
+  cases hcases with
+  | inl hex =>
+      rcases hex with ⟨x, hUnew, hVnew⟩
+      refine ⟨x, ?_⟩
+      -- 左側が {x}・右側が ∅ のときの差集合＝{x}（プレースホルダ）
+      exact sdiff_result_of_exclusive_new_left
+              (R':=R') (U:=U) (V:=V) (k:=k) (x:=x)
+              hprev hUnew hVnew
+  | inr hex =>
+      rcases hex with ⟨x, hUnew, hVnew⟩
+      refine ⟨x, ?_⟩
+      -- 右側が {x}・左側が ∅ のときの差集合＝{x}（プレースホルダ）
+      exact sdiff_result_of_exclusive_new_right
+              (R':=R') (U:=U) (V:=V) (k:=k) (x:=x)
+              hprev hUnew hVnew
+
+-- k = 0（基底段）：対称差が {t.head} に単点化
+--成り立たないのではとのことで条件を強めた。
+lemma base_diverge_symmDiff_is_head
+  [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)]
+  {ρ : RuleOrder α} {R : Finset (Rule α)}
+  {B₁ S₁ B₂ S₂ : Finset α} {t : Rule α}
+  (hW₁ : isWitness ρ R B₁ S₁ t)
+  (hW₂ : isWitness ρ R B₂ S₂ t)
+  (hA  : OnlyTLastDiff ρ R t)
+  (hNTF : NoTwoFreshHeads (R.erase t))
+  (hNS  : NoSwap (R.erase t))
+  (hUV_ne : (B₁ ∪ S₁) ≠ (B₂ ∪ S₂)) :
+  ((B₁ ∪ S₁) \ (B₂ ∪ S₂) ∪ (B₂ ∪ S₂) \ (B₁ ∪ S₁))
+    = ({t.head} : Finset α) := by
+  -- ← 今は sorry でOK（あとで埋める）
+  sorry
+/-強める前。あとで消す。
+lemma base_diverge_symmDiff_is_head
+  [DecidableEq α] [Fintype α] [LinearOrder α]
+  {ρ : RuleOrder α} {R : Finset (Rule α)} {B₁ S₁ B₂ S₂ : Finset α} {t : Rule α}
+  (hW₁ : isWitness ρ R B₁ S₁ t)
+  (hW₂ : isWitness ρ R B₂ S₂ t)
+  (hA  : OnlyTLastDiff ρ R t)
+  (hUV_ne : (B₁ ∪ S₁) ≠ (B₂ ∪ S₂)) :
+  ((B₁ ∪ S₁) \ (B₂ ∪ S₂) ∪ (B₂ ∪ S₂) \ (B₁ ∪ S₁)) = ({t.head} : Finset α) := by
+  -- ★ あなたの A-route 系補題（左差/右差⇒head）に差し替えて後で埋めてください
+  sorry
 -/
 
+-- k>0：最初に分岐した（k-1 と k の間）とき、その単点は t.head
+lemma ARoute_singleton_is_head
+  [DecidableEq α] [Fintype α] [LinearOrder α]
+  {ρ : RuleOrder α} {R : Finset (Rule α)}[DecidableEq (Rule α)]
+   {B₁ S₁ B₂ S₂ : Finset α} {t : Rule α}
+  {R' : Finset (Rule α)} {U V : Finset α} {k : ℕ} {x : α}
+  (hA  : OnlyTLastDiff ρ R t)
+  (hW₁ : isWitness ρ R B₁ S₁ t)
+  (hW₂ : isWitness ρ R B₂ S₂ t)
+  (hprev : parIter R' U k = parIter R' V k)
+  (hnext : parIter R' U (k+1) ≠ parIter R' V (k+1))
+  (hxSD :
+    (parIter R' U (k+1) \ parIter R' V (k+1) ∪
+     parIter R' V (k+1) \ parIter R' U (k+1)) = {x}) :
+  x = t.head := by
+  -- ★ あなたの A-route 系補題（最初の食い違いは head）に差し替えて後で埋めてください
+  sorry
+
+
+--上のsyncCl_eq_of_two_witnesses_ARouteと同じか。
+/-- addedFamily の一意性（A-route の核）。closure版に変更する必要あり。 -/
+lemma addedFamily_unique_of_ARoute
+[DecidableEq α] [Fintype α] [LinearOrder α]
+  (ρ : RuleOrder α) (R : Finset (Rule α))[DecidableEq (Rule α)]
+   {B₁ S₁ B₂ S₂ : Finset α} {t : Rule α}
+  (hUC  : UC (R:=R)) (hNTF : NoTwoFreshHeads (R.erase t))
+  (hNS  : NoSwap (R.erase t))
+  (hW₁  : isWitness  ρ R B₁ S₁ t)
+  (hW₂  : isWitness  ρ R B₂ S₂ t)
+  (hA : OnlyTLastDiff ρ R t)
+  (hAdd₁ : syncCl (R.erase t) (B₁ ∪ S₁) ∈ addedFamily R t)
+  (hAdd₂ : syncCl (R.erase t) (B₂ ∪ S₂) ∈ addedFamily R t) :
+  syncCl (R.erase t) (B₁ ∪ S₁) = syncCl (R.erase t) (B₂ ∪ S₂) := by
+  classical
+
+  -- 記号設定
+  set R' : Finset (Rule α) := R.erase t with hR'
+  set U  : Finset α := B₁ ∪ S₁ with hU
+  set V  : Finset α := B₂ ∪ S₂ with hV
+  --haveI : DecidableEq (Rule α) := inferInstance
+  have ht : t ∈ R := isWitness_mem_in_R hW₁
+  -- 反証法：closure が異なると仮定
+  by_contra hne
+  -- 最初の食い違い段 k を取る
+  obtain ⟨k, _hk, hne_k, hprev_or_zero⟩ :=
+    exists_min_k_of_syncCl_ne (R':=R') (U:=U) (V:=V) hne
+  cases hprev_or_zero with
+  | inl hk0 =>
+      -- k = 0 の場合：U と V 自体が食い違い
+      have hUC' : UniqueChild α R := by exact @Iff.mpr (UniqueChild α R) (UC R) (UniqueChild_iff_UC R) hUC
+      have hn₀ :
+        t.head ∉ syncCl (R.erase t) (B₁ ∪ S₁) := by
+        let ln := head_not_in_syncCl_of_erase_witness
+          (ρ:=ρ) (R:=R) (B:=B₁) (S:=S₁) (t:=t)
+          (hUC:=hUC') (ht:=ht) (hW:=hW₁)
+        convert ln
+
+      -- 目標 `t.head ∉ syncCl R' U` を等式で書き換えて一致させる
+      -- （スタイル要件に合わせて simpa は使わず、rw→exact）
+      rw [hR', hU] at hne
+
+      have hnotU :
+        t.head ∉ syncCl R' U := by
+          let hn := head_not_in_syncCl_of_erase_witness
+             (ρ:=ρ) (R:=R) (B:=B₁) (S:=S₁) (t:=t) hUC' ht hW₁
+          convert hn
+
+      have hnotV :
+          t.head ∉ syncCl R' V := by
+        let hn := head_not_in_syncCl_of_erase_witness
+          (ρ:=ρ) (R:=R) (B:=B₂) (S:=S₂) (t:=t) hUC' ht hW₂
+        convert hn
+
+      -- extensiveness: U ⊆ syncCl R' U, V ⊆ syncCl R' V
+      have hU_sub : U ⊆ syncCl R' U := by exact syncCl_extensive R' U
+      have hV_sub : V ⊆ syncCl R' V := by exact syncCl_extensive R' V
+
+      -- ─────────────────────────────────────────────────────────────
+      -- k = 0 ブランチの矛盾（A-route基底段：対称差＝{t.head}）
+      -- 「U ≠ V」を hne_k と hk0 から取り出す
+      have hUV_ne : U ≠ V := by
+        -- hne_k : parIter R' U k ≠ parIter R' V k,  hk0 : k = 0
+        have hne0 : parIter R' U 0 ≠ parIter R' V 0 := by
+          -- parIter…k を k=0 で書き換え
+          exact by simpa [hk0] using hne_k
+        -- もし U = V なら、S ↦ parIter R' S 0 の両辺適用で矛盾
+        intro hEq
+        have : parIter R' U 0 = parIter R' V 0 := by
+          -- congrArg で S の位置に 0 段反復をかける
+          have := congrArg (fun S : Finset α => parIter R' S 0) hEq
+          exact this
+        exact hne0 this
+
+      -- A-route（基底段）: 初回の食い違いの対称差は単点 {t.head}
+      -- ※ 環境の実名に置換： base_diverge_symmDiff_is_head
+      have hxSD0 :
+        ((U \ V) ∪ (V \ U)) = ({t.head} : Finset α) := by
+        exact base_diverge_symmDiff_is_head hW₁ hW₂ hA hNTF hNS hUV_ne
+
+      -- {t.head} から和差集合への帰着で、t.head がどちらか片側に入る
+      have hmem_union : t.head ∈ ((U \ V) ∪ (V \ U)) := by
+        -- membership 等式へ写像する
+        have hEq :=
+          congrArg (fun (S : Finset α) => t.head ∈ S) hxSD0.symm
+        -- hEq : t.head ∈ {t.head} ↔ t.head ∈ ((U\V) ∪ (V\U))
+        -- 等式で左から右へ書き換え
+        exact Eq.mp hEq (Finset.mem_singleton_self _)
+
+      have : False := by
+        -- 片側に入る ⇒ U か V に入る ⇒ extensiveness で syncCl に入る ⇒ witness 由来の hnotU/hnotV と衝突
+        rcases Finset.mem_union.mp hmem_union with hL | hR
+        · have : t.head ∈ U := (Finset.mem_sdiff.mp hL).left
+          exact hnotU (hU_sub this)
+        · have : t.head ∈ V := (Finset.mem_sdiff.mp hR).left
+          exact hnotV (hV_sub this)
+      exact this.elim
+
+  | inr hprev =>
+      -- 直前段で一致：hprev : parIter R' U (k-1) = parIter R' V (k-1)
+      -- k=0 の場合は上と同様に基底段で矛盾を作る。そうでなければ k>0 に落として次段分岐を適用。
+      by_cases hk0 : k = 0
+      · -- k = 0 は基底段に帰着（上と同じ議論）
+        -- UC → UniqueChild
+        have hUC' : UniqueChild α R :=
+          (UniqueChild_iff_UC (R:=R)).mpr hUC
+        -- witness 由来の「head は入らない」
+        have hnotU : t.head ∉ syncCl R' U := by
+
+          -- まず (R.erase t, B₁∪S₁) 版を得る
+          have hn :
+              t.head ∉ syncCl (R.erase t) (B₁ ∪ S₁) := by
+            let hni := @head_not_in_syncCl_of_erase_witness _ _ _ _ _ _ ρ R B₁ S₁ t hUC' ht hW₁
+            convert hni
+
+          -- R' と U に戻す
+          cases hR'
+          cases hU
+          dsimp [U]
+          dsimp [R']
+          convert hn
+
+        have ht₂ : t ∈ R := isWitness_mem_in_R hW₂
+        have hnotV :
+            t.head ∉ syncCl R' V := by
+          have hn :
+              t.head ∉ syncCl (R.erase t) (B₂ ∪ S₂) := by
+            let hni := @head_not_in_syncCl_of_erase_witness _ _ _ _ _ _ ρ R B₂ S₂ t hUC' ht hW₂
+            convert hni
+
+          cases hR'
+          cases hV
+          dsimp [V]
+          dsimp [R']
+          convert hn
+
+          --exact hn
+        have hU_sub : U ⊆ syncCl R' U := by exact syncCl_extensive R' U
+        have hV_sub : V ⊆ syncCl R' V := by exact syncCl_extensive R' V
+
+        -- U ≠ V は hne_k と hk0 から（上と同じ作り方）
+        have hUV_ne : U ≠ V := by
+          have hne0 : parIter R' U 0 ≠ parIter R' V 0 := by
+            exact by simpa [hk0] using hne_k
+          intro hEq
+          have : parIter R' U 0 = parIter R' V 0 :=
+            congrArg (fun S : Finset α => parIter R' S 0) hEq
+          exact hne0 this
+
+        -- A-route 基底段の単点化
+        have hxSD0 :
+          ((U \ V) ∪ (V \ U)) = ({t.head} : Finset α) := by
+          exact base_diverge_symmDiff_is_head hW₁ hW₂ hA hNTF hNS hUV_ne
+
+        -- 片側に入る → extensiveness → witness の否定と衝突
+        have hmem_union : t.head ∈ ((U \ V) ∪ (V \ U)) := by
+          have hEq :=
+            congrArg (fun (S : Finset α) => t.head ∈ S) hxSD0.symm
+          exact Eq.mp hEq (Finset.mem_singleton_self _)
+        have : False := by
+          rcases Finset.mem_union.mp hmem_union with hL | hR
+          · have : t.head ∈ U := (Finset.mem_sdiff.mp hL).left
+            exact hnotU (hU_sub this)
+          · have : t.head ∈ V := (Finset.mem_sdiff.mp hR).left
+            exact hnotV (hV_sub this)
+        exact this.elim
+
+      · -- k > 0：k0 := k-1 で「前＝・次≠」を作り、単点化→ x = t.head 特定→矛盾
+        have hkpos : 0 < k := Nat.pos_of_ne_zero hk0
+        -- 次段での不一致（(k-1)+1 = k で書き換え）
+        have hnext' :
+            parIter R' U ((k-1)+1) ≠ parIter R' V ((k-1)+1) := by
+          -- succ_pred の同値で k に戻す
+          have := hne_k
+          -- (k-1)+1 = k
+          simp
+          have : k = (k-1)+1 := by exact (Nat.sub_eq_iff_eq_add hkpos).mp rfl
+          rw [←this]
+          exact hne_k
+
+        -- NoTwoFreshHeads・NoSwap による単点対称差
+        obtain ⟨x, hxSD⟩ :=
+          singleton_symmDiff_next_diverge
+            (R':=R') hNTF hNS
+            (U:=U) (V:=V) (k:=k-1)
+            (hprev) (hnext')
+
+        -- A-route：その単点は t.head
+        -- ※ 環境の実名に置換： ARoute_singleton_is_head
+        have hx_head : x = t.head := by
+          have : k = (k-1)+1 := by exact (Nat.sub_eq_iff_eq_add hkpos).mp rfl
+          rw [←this] at hxSD
+          apply ARoute_singleton_is_head hA hW₁ hW₂ hprev hnext'
+          rw [←this]
+          exact hxSD
+
+        -- witness から両側の syncCl への禁止
+        have hUC' : UniqueChild α R :=
+          (UniqueChild_iff_UC (R:=R)).mpr hUC
+        have hnotU :
+            t.head ∉ syncCl R' U := by
+          have hn :
+              t.head ∉ syncCl (R.erase t) (B₁ ∪ S₁) := by
+                let hni := @head_not_in_syncCl_of_erase_witness _ _ _ _ _ _ ρ R B₁ S₁ t hUC' ht hW₁
+                convert hni
+
+          cases hR'
+          cases hU
+          dsimp [U]
+          dsimp [R']
+          convert hn
+          --exact hn
+        have ht₂ : t ∈ R := isWitness_mem_in_R hW₂
+        have hnotV :
+            t.head ∉ syncCl R' V := by
+          have hn :
+              t.head ∉ syncCl (R.erase t) (B₂ ∪ S₂) := by
+            let hni := @head_not_in_syncCl_of_erase_witness _ _ _ _ _ _ ρ R B₂ S₂ t hUC' ht hW₂
+            convert hni
+
+          cases hR'
+          cases hV
+          dsimp [V]
+          dsimp [R']
+          convert hn
+
+        -- parIter ⊆ syncCl
+        have hU_sub' :
+            parIter R' U ((k-1)+1) ⊆ syncCl R' U := by
+          have : k = (k-1)+1 := by exact (Nat.sub_eq_iff_eq_add hkpos).mp rfl
+          rw [←this]
+          show parIter R' U k ⊆ syncCl R' U
+          exact parIter_subset_syncCl (R:=R') (I:=U) k
+
+          --parIter_subset_syncCl (k:=(k-1)+1)
+        have hV_sub' :
+            parIter R' V ((k-1)+1) ⊆ syncCl R' V := by
+          have : k = (k-1)+1 := by exact (Nat.sub_eq_iff_eq_add hkpos).mp rfl
+          rw [←this]
+          show parIter R' V k ⊆ syncCl R' V
+          exact parIter_subset_syncCl (R:=R') (I:=V) k
+          --parIter_subset_syncCl (R':=R') (S:=V) (k:=(k-1)+1)
+
+        -- 単点対称差 = {x} から、x は左右いずれかの (k) 段集合に属する
+        have hx_mem_union :
+          x ∈ ((parIter R' U ((k-1)+1) \ parIter R' V ((k-1)+1)) ∪
+                (parIter R' V ((k-1)+1) \ parIter R' U ((k-1)+1))) := by
+          -- {x} への帰着
+          have hx_singleton : x ∈ ({x} : Finset α) :=
+            Finset.mem_singleton_self x
+          -- membership を等式で右から左へ
+          -- (= {x}) を用いて書き換える
+          have hEq :=
+            congrArg (fun (S : Finset α) => x ∈ S) hxSD
+
+          apply Eq.mp
+          exact id (Eq.symm hEq)
+          exact hx_singleton
+
+        -- 片側に入る ⇒ parIter に入る ⇒ syncCl に入る ⇒ head 置換で矛盾
+        have : False := by
+          rcases Finset.mem_union.mp hx_mem_union with hL | hR
+          · have hx_in_par : x ∈ parIter R' U ((k-1)+1) :=
+              (Finset.mem_sdiff.mp hL).left
+            have hx_in_cl : x ∈ syncCl R' U :=
+              hU_sub' hx_in_par
+            -- x = t.head を代入
+            cases hx_head
+            exact hnotU hx_in_cl
+          · have hx_in_par : x ∈ parIter R' V ((k-1)+1) :=
+              (Finset.mem_sdiff.mp hR).left
+            have : k = (k-1)+1 := by exact (Nat.sub_eq_iff_eq_add hkpos).mp rfl
+            rw [←this] at hx_in_par
+            have hx_in_par' : x ∈ parIter R' V ((k-1)+1) :=
+              (Finset.mem_sdiff.mp hR).left
+
+            have hx_in_cl : x ∈ syncCl R' V :=
+              hV_sub' hx_in_par'
+
+            -- x = t.head を代入して witness 由来の否定と衝突
+            cases hx_head
+
+            exact hnotV (hV_sub' hx_in_par')
+
+        exact this.elim
+
+
+
+
+/-- S の一意性（A-route 由来）。closure版に変更する必要あり。 -/
+lemma S_unique_on_addedFamily_of_ARoute
+  (ρ : RuleOrder α) (R : Finset (Rule α)) {t : Rule α}
+  {A B₁ S₁ B₂ S₂ : Finset α}
+  (hUC  : UC (R:=R)) (hNTF : NoTwoFreshHeads (R.erase t))
+  (hNS  : NoSwap (R.erase t)) (hA : OnlyTLastDiff ρ R t)
+  (hW₁  : isWitness  ρ R B₁ S₁ t)
+  (hW₂  : isWitness ρ R B₂ S₂ t)
+  (hUnion : B₁ ∪ S₁ = B₂ ∪ S₂)
+  (hD₁ : Disjoint B₁ S₁) (hD₂ : Disjoint B₂ S₂)
+  (hEqCl : syncCl (R.erase t) (B₁ ∪ S₁) = syncCl (R.erase t) (B₂ ∪ S₂)) :
+  S₁ = S₂ := by
+   sorry
+   /-
+   let ml := multiplicity_le_one_addedFamily_noA (ρ := ρ) (R := R) (t := t) (hUC := (UniqueChild_iff_UC R).mpr hUC) (hW1 := hW₁)
+
+      (hNTF := hNTF) (hNS := hNS) (hA := hA)
+      (B := B₁) (S₁ := S₁) (S₂ := S₂)
+      (hD1 := hD₁)-- (hD2 := hD₂)
+      --(hW2 := hW₂)
+      --(hEq := hEqCl)
+    -/
+
+
+-- =========================
+--  ここから `sorry` なしで閉じる補助と主結論
+--   ========================= */
+
+/-- 右片固定の合併消去：`B₁ ∪ S = B₂ ∪ S` かつ両側 Disjoint → `B₁ = B₂`。 -/
+lemma base_eq_of_union_eq_disjoint_of_same_right
+  {α : Type*} [DecidableEq α]
+  {B₁ B₂ S : Finset α}
+  (hUnion : B₁ ∪ S = B₂ ∪ S)
+  (hD₁ : Disjoint B₁ S) (hD₂ : Disjoint B₂ S) :
+  B₁ = B₂ := by
+  ext x
+  constructor
+  · intro hx
+    have hxU : x ∈ B₁ ∪ S := Finset.mem_union.mpr (Or.inl hx)
+    have hxU' : x ∈ B₂ ∪ S := by
+      have := congrArg (fun (X : Finset α) => x ∈ X) hUnion
+      exact Eq.mp this hxU
+    rcases Finset.mem_union.mp hxU' with hxB2 | hxS
+    · exact hxB2
+    · exact ((Finset.disjoint_left.mp hD₁) hx hxS).elim
+  · intro hx
+    have hxU : x ∈ B₂ ∪ S := Finset.mem_union.mpr (Or.inl hx)
+    have hxU' : x ∈ B₁ ∪ S := by
+      have := congrArg (fun (X : Finset α) => x ∈ X) hUnion.symm
+      exact Eq.mp this hxU
+    rcases Finset.mem_union.mp hxU' with hxB1 | hxS
+    · exact hxB1
+    · exact ((Finset.disjoint_left.mp hD₂) hx hxS).elim
+
+omit [DecidableEq (Rule α)] in
+lemma isWitness_disjoint
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (B S : Finset α) (t : Rule α)
+  (hW : isWitness ρ R B S t) :
+  Disjoint B S := by
+  have hS_free : S ⊆ FreeOf B := hW.1
+  unfold FreeOf at hS_free
+  -- S ⊆ (univ \ B) ⇒ Disjoint B S
+  --dsimp [Disjoint, Finset.disjoint_iff_inter_eq_empty]
+
+  (expose_names; rw [subset_sdiff] at hS_free)
+  simp_all only [subset_univ, true_and]
+  rw [disjoint_iff] at hS_free ⊢
+  simp_all only [inf_eq_inter, bot_eq_empty]
+  rwa [inter_comm]
+
+/-- 主結論：witness の基底は一意（A-route インターフェイスから）。 -/
+lemma witness_base_unique
+  (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
+  (hUC  : UniqueChild α R)
+  (hNTF : NoTwoFreshHeads (R.erase t))
+  (hNS  : NoSwap (R.erase t))
+  (hA   : OnlyTLastDiff ρ R t)
+  {A B₁ S₁ B₂ S₂ : Finset α}
+  (hAS₁ : A = B₁ ∪ S₁) (hAS₂ : A = B₂ ∪ S₂)
+  (hW₁  : isWitness  ρ R B₁ S₁ t)
+  (hW₂  : isWitness  ρ R B₂ S₂ t) :
+  B₁ = B₂ := by
+  -- 合併一致（等式推移）
+  have hUnion := Eq.trans (Eq.symm hAS₁) hAS₂
+  -- Disjoint は witness から（型推論を活用）
+  have hD₁ := isWitness_disjoint  ρ R B₁ S₁ t hW₁
+  have hD₂ := isWitness_disjoint  ρ R B₂ S₂ t hW₂
+  -- UniqueChild → UC 変換
+  have hUC' := (UniqueChild_iff_UC (R:=R)).mp hUC
+  -- addedFamily メンバーシップ（弱リフティング）
+  have hAdd₁ := weak_lifting_mem
+                    ρ R hUC' B₁ S₁ t hW₁
+  have hAdd₂ := weak_lifting_mem
+                    ρ R hUC' B₂ S₂ t hW₂
+  -- syncCl 等号（A-route の addedFamily 一意性）
+  have hEqCl :=
+    addedFamily_unique_of_ARoute
+      ρ R hUC' hNTF hNS hA hW₁ hW₂ hAdd₁.2.2 hAdd₂.2.2
+
+  have : S₁ = S₂ := by
+    apply S_unique_on_addedFamily_of_ARoute
+      ρ R hUC' hNTF hNS hA hW₁ hW₂ hUnion hD₁ hD₂ hEqCl
+    exact A
+  rw [this] at hUnion
+
+  apply base_eq_of_union_eq_disjoint_of_same_right hUnion --hD₁ --hD₂
+  · rw [←this]
+    exact hD₁
+  · exact hD₂
+
+
+end
 
 /-
 --noncomputable instance decidable_IsClosed {α : Type _} {R : Finset (Rule α)} : DecidablePred (IsClosed R) :=
@@ -1013,6 +2078,7 @@ lemma syncCl_eq_of_two_witnesses_ARoute
 noncomputable instance : DecidablePred (fun S : Finset α => isWitness ρ R B S t) :=
   fun S => Classical.dec (isWitness ρ R B S t)
 
+--別ルートにおいては重要なので未証明だが残す。
 lemma card_witness_le_one_from_unique
   [DecidableEq α] [Fintype α] [LinearOrder α]
   (ρ : RuleOrder α) {R : Finset (Rule α)}
@@ -1117,7 +2183,33 @@ lemma closed_card_le_half_of_unique_witness
 --   - NDS R = Σ_{I ⊆ α} (2|I| - |α|)
 --   - I = α = {1,2,3} の項: 2×3 - 3 = 3 > 0
 --   - よって NDS R > 0
---
+
+/-
+-- この補題の前提は矛盾している：
+-- parIter R' U (k-1) = parIter R' V (k-1) なら、
+-- parIter R' U k = stepPar R' (parIter R' U (k-1)) = stepPar R' (parIter R' V (k-1)) = parIter R' V k
+-- となり hneq に矛盾する。
+-- したがって前提が False を導くので、この補題は自明に成り立つ（ex falso quodlibet）。
+lemma singleton_symmDiff_at_first_diverge
+  [DecidableEq α] [Fintype α]
+  {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R') (hNS : NoSwap R')
+  {U V : Finset α} {k : ℕ}
+  (hk_pos : 0 < k)
+  (hprev : parIter R' U (k-1) = parIter R' V (k-1))
+  (hneq  : parIter R' U k ≠ parIter R' V k) :
+  ∃ x, ((parIter R' U k \ parIter R' V k) ∪
+        (parIter R' V k \ parIter R' U k)) = {x} := by
+  -- 前提が矛盾していることを示す
+  exfalso
+  apply hneq
+  -- parIter の定義を展開: parIter R' U k = parIter R' U ((k-1) + 1) = stepPar R' (parIter R' U (k-1))
+  have hk_succ : k = Nat.succ (k - 1) := (Nat.succ_pred_eq_of_pos hk_pos).symm
+  rw [hk_succ]
+  simp only [parIter]
+  -- hprev を使う
+  rw [hprev]
+-/
+
 -- この補題が成り立つには、R に非自明な構造（ルールの存在、UC性質など）が必要。
 lemma NDS_le_zero_of_unique_S
   [DecidableEq α] [Fintype α] [LinearOrder α]
@@ -1268,96 +2360,6 @@ lemma multiplicity_le_one_addedFamily_noA
 -/
 
 /-
-lemma multiplicity_le_one_addedFamily_noA
-  [DecidableEq α] [Fintype α] [LinearOrder α]
-  (ρ : RuleOrder α) {R : Finset (Rule α)} {t : Rule α}
-  (hUC : UniqueChild (α:=α) R) (ht : t ∈ R)
-  (hNTF : NoTwoFreshHeads (R.erase t))
-  (hNS  : NoSwap (R.erase t))
-  {B S₁ S₂ : Finset α}
-  (hD1 : Disjoint B S₁) (hD2 : Disjoint B S₂)
-  (hW1 : isWitness ρ R B S₁ t) (hW2 : isWitness ρ R B S₂ t)
-  (hEq : syncCl (R.erase t) (B ∪ S₁) = syncCl (R.erase t) (B ∪ S₂)) :
-  S₁ = S₂ := by
-  classical
-  set U : Finset α := B ∪ S₁
-  set V : Finset α := B ∪ S₂
-  have finish_eq : U = V → S₁ = S₂ :=
-    fun hUV => disjoint_union_eq_implies_right_eq hD1 hD2 hUV
-
-  -- erase側 UC
-  have hUC' : UniqueChild α (R.erase t) := by
-    intro r₁ r₂ hr₁ hr₂ hhead
-    exact hUC (Finset.mem_of_mem_erase hr₁) (Finset.mem_of_mem_erase hr₂) hhead
-
-  -- 同期閉包等式から「等しい or 最小段の一意原因」へ
-  have hCause :=
-    lastDiff_unique_cause_of_syncEq_unique
-      (R' := R.erase t) hNTF hNS (hUC' := hUC')
-      (U := U) (V := V) (hSync := hEq)
-
-  -- 分岐処理
-  rcases hCause with hUV | ⟨k, f, hkBound, hEqNext, hUniq⟩
-  · exact finish_eq hUV
-  ·
-    -- k段の状態
-    set X : Finset α := parIter (R.erase t) U k
-    set Y : Finset α := parIter (R.erase t) V k
-    have hX : X = parIter (R.erase t) U k := rfl
-    have hY : Y = parIter (R.erase t) V k := rfl
-
-    -- (k+1) 段一致の形に直す
-    have hEqNext' :
-      parIter (R.erase t) U (k+1) = parIter (R.erase t) V (k+1) := hEqNext
-
-    -- 右枝 or 左枝
-    cases hUniq with
-    | inl hR =>
-        -- 右枝データ
-        have hXYempty : X \ Y = ∅ := hR.left
-        have hExu : ∃! r, r ∈ R.erase t ∧ r.prem ⊆ X ∧ r.head = f := hR.right
-        -- まず f = t.head を右枝用補題で取得
-        have hf_head : f = t.head := by
-          exact head_eq_thead_on_right_branch
-            (ρ:=ρ) (R:=R) (t:=t) (hUC:=(UniqueChild_iff_UC _).mp hUC) (ht:=ht)
-            (B:=B) (S₁:=S₁) (hW1:=hW1)
-            (k:=k) (f:=f) (U:=U) (V:=V) (hU:=rfl)
-            (hEqNext:=hEqNext') (X:=X) (Y:=Y) (hX:=hX) (hY:=hY)
-            (hXYempty:=hXYempty) (hExu:=hExu)
-
-        -- 右枝は不可能（矛盾）→ U=V の枝のみ残る
-        exact (False.elim <|
-          result_right_impossible
-            (ρ:=ρ) (R:=R) (t:=t) (hUC:=(UniqueChild_iff_UC _).mp hUC) (ht:=ht)
-            (hW1:=hW1) (k:=k) (f:=f) (U:=U) (V:=V) (hU:=rfl)
-            (hEqNext:=hEqNext') (X:=X) (Y:=Y) (hX:=hX) (hY:=hY)
-            (hXYempty:=hXYempty) (hExu:=hExu)
-            (hf_head:=hf_head) (hkBound:=hkBound))
-
-    | inr hL =>
-        -- 左枝データ
-        have hYXempty : Y \ X = ∅ := hL.left
-        have hExuY : ∃! r, r ∈ R.erase t ∧ r.prem ⊆ Y ∧ r.head = f := hL.right
-        -- 左枝でも f = t.head
-        have hf_head : f = t.head :=
-          head_eq_thead_on_left_branch
-            (ρ:=ρ) (R:=R) (t:=t) (hUC:=(UniqueChild_iff_UC _).mp hUC) (ht:=ht)
-            (B:=B) (S₁:=S₁) (hW1:=hW1)
-            (k:=k) (f:=f) (U:=U) (V:=V) (hU:=rfl)
-            (hEqNext:=hEqNext') (X:=X) (Y:=Y) (hX:=hX) (hY:=hY) (hYXempty:=hYXempty) (hExuY:=hExuY)
-
-        -- 左枝も不可能（矛盾）
-        exact (False.elim <|
-          result_left_impossible
-            (ρ:=ρ) (R:=R) (t:=t) (hUC:=(UniqueChild_iff_UC _).mp hUC) (ht:=ht)
-            (hW1:=hW1) (k:=k) (f:=f) (U:=U) (V:=V) (hU:=rfl)
-            (hEqNext:=hEqNext') (X:=X) (Y:=Y) (hX:=hX) (hY:=hY)
-            (hYXempty:=hYXempty) (hExuY:=hExuY)
-            (hf_head:=hf_head) (hkBound:=hkBound))
-
--/
-
-/-
 /-- **最終定理（(A) 仮定つき完成版）**：
 Witness が 2 組 `(B,S₁,t)` と `(B,S₂,t)` を与え，
 `R.erase t` の閉包が一致すれば `S₁ = S₂`。 -/
@@ -1449,226 +2451,7 @@ lemma multiplicity_le_one_addedFamily
 
 -/
 
-
-/-古いバージョン。けしてよい
-lemma multiplicity_le_one_addedFamily_noA
-  [DecidableEq α] [Fintype α] [LinearOrder α]
-  (ρ : RuleOrder α) {R : Finset (Rule α)} {t : Rule α}
-  (hUC : UniqueChild (α:=α) R) (ht : t ∈ R)
-  (hNTF : NoTwoFreshHeads (R.erase t))
-  (hNS  : NoSwap (R.erase t))
-  (hA   : OnlyTLastDiff ρ R t)     -- ★ ここを復活
-  {B S₁ S₂ : Finset α}
-  (hD1 : Disjoint B S₁) (hD2 : Disjoint B S₂)
-  (hW1 : isWitness ρ R B S₁ t) (hW2 : isWitness ρ R B S₂ t)
-  (hEq : syncCl (R.erase t) (B ∪ S₁) = syncCl (R.erase t) (B ∪ S₂)) :
-  S₁ = S₂ :=
-by
-  classical
-  -- 記号
-  set U : Finset α := B ∪ S₁
-  set V : Finset α := B ∪ S₂
-
-  -- U=V → S₁=S₂
-  have finish_eq : U = V → S₁ = S₂ :=
-    disjoint_union_eq_implies_right_eq hD1 hD2
-
-  -- (補助) UC を erase 側へ
-  have hUC' : UniqueChild (α:=α) (R.erase t) := by
-    intro r₁ r₂ hr₁ hr₂ hhd
-    have hr₁R : r₁ ∈ R := (Finset.mem_erase.mp hr₁).2
-    have hr₂R : r₂ ∈ R := (Finset.mem_erase.mp hr₂).2
-    exact hUC hr₁R hr₂R hhd
-
-  -- 「OnlyTLastDiff から右枝/左枝で f = t.head」を返す小補題を作る
-  -- （あなたの OnlyTLastDiff の定義にそのまま一致するはず）
-
-  have head_eq_right_from_A :
-    ∀ {k f},
-      parIter (R.erase t) U (k+1) = parIter (R.erase t) V (k+1) →
-      parIter (R.erase t) U k \ parIter (R.erase t) V k = ∅ →
-      (∃! r : Rule α,
-        r ∈ R.erase t ∧ r.prem ⊆ parIter (R.erase t) U k ∧ r.head = f) →
-      f = t.head :=
-  by
-    -- ★ ここは hA をそのまま適用するだけ（定義に依存）。
-    --   もし hA が「この状況の時 f=t.head」をちょうど返す形なら `exact hA ...`。
-    --   そうでなければ、あなたの環境の hA のインターフェースに合わせて束縛を並べ替えてください。
-    intro k f hEqNext hXYempty hExu
-    sorry
-    --exact hA.right_branch  -- ← あなたの定義に合わせて差し替え
-
-  have head_eq_left_from_A :
-    ∀ {k f},
-      parIter (R.erase t) U (k+1) = parIter (R.erase t) V (k+1) →
-      parIter (R.erase t) V k \ parIter (R.erase t) U k = ∅ →
-      (∃! r : Rule α,
-        r ∈ R.erase t ∧ r.prem ⊆ parIter (R.erase t) V k ∧ r.head = f) →
-      f = t.head :=
-  by
-    intro k f hEqNext hYXempty hExuY
-    sorry
-    --exact hA.left_branch   -- ← あなたの定義に合わせて差し替え
-
-  -- 等閉包の等式 ⇒ 「U=V」or「最小段 k と単点 f」
-  obtain hUV | ⟨k, f, hk, hEqNext, hSingle⟩ :=
-    exists_singleton_lastDiff_of_syncEq_strong
-      (R' := R.erase t) hNTF hNS (U := U) (V := V) (hSync := hEq)
-  · exact finish_eq hUV
-  ·
-    -- X,Y, step 同一
-    set X : Finset α := parIter (R.erase t) U k
-    set Y : Finset α := parIter (R.erase t) V k
-    have hStep : stepPar (R.erase t) X = stepPar (R.erase t) Y := by
-      change stepPar (R.erase t) (parIter (R.erase t) U k)
-           = stepPar (R.erase t) (parIter (R.erase t) V k) at hEqNext
-      simpa [X, Y] using hEqNext
-
-    -- 対称差 = {f} の3分岐
-    have hcases :=
-      sdiff_union_singleton_cases (X := X) (Y := Y) (f := f)
-        (by
-          -- (X\Y) ∪ (Y\X) = {f}
-          -- hSingle はまさにこれ（X,Y の定義を戻すだけ）
-          -- rw/simp を避けたいなら、定義等式を展開せず `simpa [X, Y]` 相当で渡せます
-          -- ここでは membership 等式にならないので `have := hSingle; exact this`
-          simp [X, Y]
-          exact hSingle
-        )
-
-
-    -- 場合分け
-    cases hcases with
-    | inl hRight =>
-      -- 右枝：X\Y=∅, Y\X={f}
-      rcases hRight with ⟨hXYempty, hYsingle⟩
-
-      -- f ∈ Y\X
-      have hfY : f ∈ Y ∧ f ∉ X := by
-        let man := mem_and_not_mem_of_sdiff_singleton_right (X:=X) (Y:=Y) (f:=f)
-        simp_all only [sdiff_eq_empty_iff_subset, mem_erase, ne_eq, not_false_eq_true, and_self, U,
-          V, X, Y]
-
-      -- 原因一意 (右枝側は「左の差分が空」→ cause_unique_on_left_of_step_eq を使う形)
-      have hExu :
-        ∃! r : Rule α, r ∈ R.erase t ∧ r.prem ⊆ X ∧ r.head = f :=
-        cause_unique_on_left_of_step_eq
-          (R := R.erase t) (hUC := hUC') (hstep := hStep)
-          (hg := by
-            -- f ∈ Y \ X
-            exact Finset.mem_sdiff.mpr ⟨hfY.left, hfY.right⟩)
-
-      let hXYempty : X \ Y = ∅ := by
-        simp_all only [sdiff_eq_empty_iff_subset, mem_erase, ne_eq, X, Y]
-
-      -- OnlyTLastDiff から f = t.head
-      have hf_head : f = t.head :=
-        head_eq_right_from_A (k:=k) (f:=f) hEqNext hXYempty hExu
-
-      -- 右枝は不可能
-      have contra :
-        False :=
-          result_right_impossible ρ R t
-            ((UniqueChild_iff_UC R).mp hUC) ht
-            (B := B) (S₁ := S₁) hW1
-            (k := k) (f := f)
-            (U := U) (V := V) rfl
-            (hEqNext := hEqNext)
-            (X := X) (Y := Y) rfl rfl
-            (hXYempty := hXYempty) (hExu := hExu)
-            (hf_head := hf_head) (hkBound := hk)
-      exact contra.elim
-
-    | inr rest =>
-      cases rest with
-      | inl hLeft =>
-        -- 左枝：X\Y={f}, Y\X=∅
-        rcases hLeft with ⟨hXsingle, hYXempty⟩
-
-        -- f ∈ X\Y
-        have hfX : f ∈ X ∧ f ∉ Y := by
-          let man := mem_and_not_mem_of_sdiff_singleton_right (X:=Y) (Y:=X) (f:=f)
-          apply man
-          simp_all only [sdiff_eq_empty_iff_subset, mem_erase, ne_eq, U, V, X, Y]
-
-
-        -- 原因一意（左枝側は「右の差分が空」→ cause_unique_on_right_of_step_eq）
-        have hExuY :
-          ∃! r : Rule α, r ∈ R.erase t ∧ r.prem ⊆ Y ∧ r.head = f :=
-          cause_unique_on_right_of_step_eq
-            (R := R.erase t) (hUC := hUC') (hstep := hStep)
-            (hf := by
-              -- f ∈ X \ Y
-              exact Finset.mem_sdiff.mpr ⟨hfX.left, hfX.right⟩)
-
-        let hYXempty : Y \ X = ∅ := by
-          simp_all only [sdiff_eq_empty_iff_subset, mem_erase, ne_eq, X, Y]
-
-        -- OnlyTLastDiff から f = t.head
-        have hf_head : f = t.head :=
-          head_eq_left_from_A (k:=k) (f:=f) hEqNext hYXempty hExuY
-
-        -- 左枝は不可能
-        have contra :
-          False :=
-            result_left_impossible ρ R t
-              ((UniqueChild_iff_UC R).mp hUC)
-              (B := B) (S₁ := S₁) hW1
-              (k := k) (f := f)
-              (U := U) (V := V) rfl
-              (hEqNext := hEqNext)
-              (X := X) (Y := Y) rfl rfl
-              (hYXempty := hYXempty) (hExuY := hExuY)
-              (hf_head := hf_head) (hkBound := hk)
-        exact contra.elim
-
-      | inr hdup =>
-        -- 両側 {f} は NoSwap と step 同一に反する
-        have hEmpty : X \ Y = ∅ ∨ Y \ X = ∅ := hNS X Y hStep
-
-        -- ところが今は X\Y = {f} かつ Y\X = {f} なので、どちらの枝でも矛盾
-        have : False := by
-          cases hEmpty with
-          | inl hxy =>
-              -- f ∈ X\Y （単点 {f} だから）だが、X\Y = ∅ なので矛盾
-              have hfXY : f ∈ X \ Y := by
-                have : f ∈ ({f} : Finset α) := Finset.mem_singleton_self f
-                -- X\Y = {f}
-                exact by simp [hdup.left]
-              have : f ∈ (∅ : Finset α) := by
-                simp [hxy]
-                apply Finset.notMem_empty f
-                simp_all only [sdiff_eq_empty_iff_subset, mem_erase, ne_eq, U, V, X, Y]
-              exact Finset.notMem_empty f this
-          | inr hyx =>
-              -- f ∈ Y\X だが、Y\X = ∅ なので矛盾
-              have hfYX : f ∈ Y \ X := by
-                have : f ∈ ({f} : Finset α) := Finset.mem_singleton_self f
-                -- Y\X = {f}
-                exact by
-                  simp [hdup.right]
-              have : f ∈ (∅ : Finset α) := by
-                simp
-                simp_all [U, V, X, Y]
-                have hne : ({f} : Finset α) ≠ ∅ := by
-                  -- 例えば「f は {f} に属するが、空集合には属さない」から示す
-                  intro hE
-                  have hf : f ∈ ({f} : Finset α) := Finset.mem_singleton_self f
-                  have : f ∈ (∅ : Finset α) := by
-                    simp [hE]
-                    simp_all only [sdiff_eq_empty_iff_subset, and_true, singleton_ne_empty]
-                  exact Finset.notMem_empty f this
-
-                -- ところが hdup.right は ∅ = {f} を主張しているので矛盾
-                exact hne (hdup.right.symm)
-
-              exact Finset.notMem_empty f this
-
-        -- 矛盾からは何でも従うので、S₁ = S₂ を得る
-        exact this.elim
--/
-
-/-必要か不明なので、コメントアウト
+/-必要か不明なので、コメントアウト。今のところ使われてない。
 lemma iter2_stabilizes_at_card
   [DecidableEq α] [Fintype α] [LinearOrder α]
   (R : Finset (Rule α)) (I : Finset α) :
