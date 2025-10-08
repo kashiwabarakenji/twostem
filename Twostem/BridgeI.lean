@@ -22,7 +22,7 @@ open scoped symmDiff
 open Closure
 open Finset
 
-variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α][DecidableEq (Rule α)]
+variable {α : Type _} [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)] [Fintype (Rule α)]
 
 /- 速攻版の Δ 定義：`Δ ρ R t = (AddedFamily ρ R t).card` -/
 --noncomputable def Δ (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α) : ℕ :=
@@ -141,7 +141,7 @@ lemma AF_witness_exists
     hiff.mp hA
   exact hex
 
-
+/-
 -- 同じ A の分解に対する基底の一意性
 lemma witness_base_unique
   (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
@@ -150,6 +150,7 @@ lemma witness_base_unique
   (w1 : isWitness ρ R B₁ S₁ t) (w2 : isWitness ρ R B₂ S₂ t) :
   B₁ = B₂ := by
   sorry
+-/
 
 /-- B が witness の基底である、の最小述語（A3 でも使用） -/
 def IsBaseOfWitness
@@ -266,7 +267,8 @@ lemma exists_unique_base_for_added
   --(Rep :
   --  RuleOrder α → Finset (Rule α) → Finset (Finset α))
   (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
-  {A : Finset α} (hA : A ∈ AF ρ R t)
+  {A : Finset α} (hA : A ∈ AF ρ R t) (hUC : UniqueChild (α:=α) R) (hNTF : NoTwoFreshHeads (R.erase t))
+  (hNS : NoSwap (R.erase t)) (hA: OnlyTLastDiff ρ R t)
  :
   ∃! (B : Finset α),
     B ∈ Rep ρ R ∧ ∃ S, A = B ∪ S ∧ isWitness ρ R B S t := by
@@ -274,8 +276,10 @@ lemma exists_unique_base_for_added
 
   obtain ⟨B, S, hAs, hW⟩ := AF_witness_exists
     (AF:=AF) (isWitness:=isWitness)
-    (ρ:=ρ) (R:=R) (t:=t) (A:=A)
-    hA
+    (ρ:=ρ) (R:=R) (t:=t) (A:=A) ?_
+
+  
+
     --AF_witness_exists (ρ:=ρ) (R:=R) (t:=t) (A:=A) hA
   -- 2) その基底 B は代表系に属する
   have hBmem : B ∈ Rep ρ R := by
@@ -288,7 +292,21 @@ lemma exists_unique_base_for_added
   · -- 一意性：条件を満たす任意の B' は B に等しい
     intro B' hB'
     rcases hB' with ⟨_hB'in, ⟨S', hAs', hW'⟩⟩
-    exact witness_base_unique (isWitness:=isWitness) ρ R t A B' S' B S hAs' hAs hW' hW
+
+    let wb := witness_base_unique ρ R t hUC
+    apply wb hNTF hNS
+    exact hA
+    exact hAs'
+    exact hAs
+    show Twostem.isWitness ρ R B' S' t
+    sorry
+    show Twostem.isWitness ρ R B S t
+    sorry
+
+
+
+
+
 
 lemma exists_unique_base_for_added_closure
   (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)

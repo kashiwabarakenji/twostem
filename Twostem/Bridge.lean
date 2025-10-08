@@ -1044,8 +1044,8 @@ private lemma all_steps_increase_if_last_increases
 
 
 
-
---なりたたないとはいえないが、必要ない。以下の方針はよくないそう。
+/-
+--多分別のもので置き換わっていて、これは使わない。
 lemma syncCl_eq_of_two_witnesses_ARoute
   [DecidableEq α] [Fintype α] [LinearOrder α]
   (ρ : RuleOrder α) (R : Finset (Rule α)) {B S₁ S₂ : Finset α} {t : Rule α}
@@ -1171,9 +1171,112 @@ lemma syncCl_eq_of_two_witnesses_ARoute
   | inr hR =>
       -- 右枝は対称（U↔V, S₁↔S₂ を入れ替え）
       admit
+-/
 
+lemma mem_of_isWitness {α : Type*} [Fintype α] [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)]
+  {ρ : RuleOrder α} {R : Finset (Rule α)} {B S : Finset α} {t : Rule α}
+  (hW : isWitness ρ R B S t) : t ∈ R := by
+  -- isWitness = ⟨(S ⊆ FreeOf B), violatesFirst ρ R t (B ∪ S)⟩ を想定
+  rcases hW with ⟨_, hVF⟩
+  exact mem_of_violatesFirst (ρ:=ρ) (R:=R) (t:=t) (I:=B ∪ S) hVF
+
+def MutExSameHead {α : Type*}  [Fintype α] [DecidableEq α] [LinearOrder α] [DecidableEq (Rule α)]
+(R : Finset (Rule α)) : Prop :=
+  ∀ I t₁ t₂, t₁ ∈ applicable R I → t₂ ∈ applicable R I → t₁.head = t₂.head
+
+section HeadImageCard
+variable {α β : Type*} [DecidableEq β]
+
+lemma card_image_le_one_of_const_on
+  (s : Finset α) (f : α → β)
+  (hconst : ∀ x ∈ s, ∀ y ∈ s, f x = f y) :
+  (s.image f).card ≤ 1 := by
+  classical
+  by_cases hne : s = ∅
+  · subst hne; simp
+  · obtain ⟨x0, hx0⟩ := Finset.nonempty_of_ne_empty hne
+    have hsub : s.image f ⊆ {f x0} := by
+      intro y hy
+      rcases Finset.mem_image.mp hy with ⟨x, hx, rfl⟩
+      have := hconst x hx x0 hx0
+      simp [Finset.mem_singleton]
+      exact hconst x hx x0 hx0
+    have hy0 : f x0 ∈ s.image f := Finset.mem_image.mpr ⟨x0, hx0, rfl⟩
+    have : s.image f = {f x0} :=
+      Finset.Subset.antisymm hsub (by
+        intro y hy;
+        simp
+        simp_all only [subset_singleton_iff, image_eq_empty, false_or, mem_singleton]
+        subst hy
+        use x0
+
+      )
+    simp [this]
+
+lemma NoTwoFreshHeads_of_MutExSameHead
+  {α : Type*} [DecidableEq α] [Fintype α] [LinearOrder α]
+  {R : Finset (Rule α)} (hME : MutExSameHead R) :
+  NoTwoFreshHeads R := by
+  classical
+  intro I
+  -- applicable R I 上で head が定数
+  have hconst :
+      ∀ x ∈ applicable R I, ∀ y ∈ applicable R I, (fun t : Rule α => t.head) x
+        = (fun t : Rule α => t.head) y :=
+    by
+      intro x hx y hy; exact hME I x y hx hy
+  -- fires R I = (applicable R I).image (·.head)
+  simpa using
+    card_image_le_one_of_const_on (s := applicable R I) (f := fun t : Rule α => t.head) hconst
+
+end HeadImageCard
+
+lemma NoTwoFreshHeads_of_UC_erase_from_MutEx
+  {α : Type*} [DecidableEq α] [Fintype α] [LinearOrder α]
+  {R : Finset (Rule α)} {t : Rule α}
+  (hME_erase : MutExSameHead (R.erase t)) :
+  NoTwoFreshHeads (R.erase t) :=
+NoTwoFreshHeads_of_MutExSameHead hME_erase
+
+--必要: Yes。最終一意性のコア
+lemma ARoute_unique_syncCl_of_NoTwo
+  [DecidableEq α] [Fintype α] [LinearOrder α] [DecidableEq (Rule α)]
+  {ρ : RuleOrder α} {R : Finset (Rule α)} {t : Rule α}
+  (hUC  : UC (R:=R))
+  (hNTF : NoTwoFreshHeads (R.erase t))
+  (hA   : OnlyTLastDiff ρ R t)
+  {B₁ S₁ B₂ S₂ : Finset α}
+  (hW₁ : isWitness ρ R B₁ S₁ t) (hW₂ : isWitness ρ R B₂ S₂ t) :
+  syncCl (R.erase t) (B₁ ∪ S₁) = syncCl (R.erase t) (B₂ ∪ S₂) := by
+  -- 先に貼っていただいた「最初の差は単点→それが t.head → witness 禁止で矛盾」
+  -- の流れを部品化して組み上げます（いまのコード断片を整理すれば到達できます）。
+  sorry
+
+--必要: Yes。addedFamily 側へ持ち上げる定型。
 /-- weak_lifting（直接版）： すでにclosure版になっている。
     witness から `J := syncCl (R.erase t) (B ∪ S)` を addedFamily に持ち上げ。 -/
+lemma weak_lifting_mem
+  (ρ : RuleOrder α) (R : Finset (Rule α))
+  (hUC : UC (R:=R)) (B S : Finset α) (t : Rule α)
+  (hW : isWitness ρ R B S t) :
+  let A := syncCl (R.erase t) (B ∪ S)
+  t.prem ⊆ A ∧ t.head ∉ A ∧ A ∈ addedFamily R t := by
+  -- A は let で定義済み
+  let A := syncCl (R.erase t) (B ∪ S)
+  have hPrem : t.prem ⊆ A := by sorry -- prem_subset_syncCl_of_witness hW
+  have ht   : t ∈ R := mem_of_isWitness hW
+  have hHead : t.head ∉ A := by
+    let hni := head_not_in_syncCl_of_erase_witness (ρ:=ρ) (R:=R) (B:=B) (S:=S) (t:=t) (ht:=ht) (hW:=hW)
+    dsimp [A]
+    have : UniqueChild (α:=α) R := by exact @Iff.mpr (UniqueChild α R) (UC R) (UniqueChild_iff_UC R) hUC
+    convert hni this
+
+  have hClosed : IsClosed (R.erase t) A := by exact syncCl_closed (R.erase t) (B ∪ S)
+  have hAF : A ∈ addedFamily R t := by
+    let mai := (mem_addedFamily_iff R t A).mpr ⟨hClosed, hPrem, hHead⟩
+    exact mai
+  exact ⟨hPrem, hHead, hAF⟩
+/-
 lemma weak_lifting_mem
   (ρ : RuleOrder α) (R : Finset (Rule α))
   (hUC : UC (R:=R))
@@ -1245,7 +1348,9 @@ lemma weak_lifting_mem
   -- 連結
   exact And.intro hPrem_sync (And.intro hHead_not hAdd)
 --noncomputable instance : DecidableEq (Rule α) := Classical.decEq _
+-/
 
+--必要: Yes（単点化のため）。
 /-- NoTwoFreshHeads から、1ステップで増える部分の個数が高々1。 -/
 lemma new_card_le_one_of_NoTwoFreshHeads
   [DecidableEq α] [Fintype α]
@@ -1258,6 +1363,7 @@ lemma new_card_le_one_of_NoTwoFreshHeads
      を示し、card ≤ card fires ≤ 1 に落とす。 -/
   sorry
 
+--必要: Yes（前段一致→次段差＝新顔の対称差に同型化）。
 /-- 前段一致 A=B のもと、次段差は ΔU, ΔV の対称差と一致。 -/
 lemma next_diff_as_new_sdiff
   [DecidableEq α] [Fintype α]
@@ -1275,6 +1381,7 @@ lemma next_diff_as_new_sdiff
      A'\B' = ΔU\ΔV, B'\A' = ΔV\ΔU を membership で示す。-/
   sorry
 
+--NoSwapを使わない方針であれば不必要。
 lemma exclusive_new_next_step
   [DecidableEq α] [Fintype α]
   {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R') (hNS : NoSwap R')
@@ -1354,6 +1461,7 @@ lemma exclusive_new_next_step
       refine ⟨x, ?_, ?_⟩ <;>
       simp_all only [ne_eq, union_eq_empty, sdiff_eq_empty_iff_subset, not_and, A, B, A', B', ΔU, ΔV]
 
+--使える部品
 lemma sdiff_result_of_exclusive_new_left
   [DecidableEq α] [Fintype α]
   {R' : Finset (Rule α)} {U V : Finset α} {k : ℕ} {x : α}
@@ -1492,6 +1600,7 @@ lemma sdiff_result_of_exclusive_new_left
       rw [hleft, hright]
     _ = ({x} : Finset α) := by exact Finset.union_empty _
 
+--使える部品
 lemma sdiff_result_of_exclusive_new_right
   [DecidableEq α] [Fintype α]
   {R' : Finset (Rule α)} {U V : Finset α} {k : ℕ} {x : α}
@@ -1592,6 +1701,7 @@ lemma sdiff_result_of_exclusive_new_right
       rw [hleft, hright]
     _ = ({x} : Finset α) := Finset.empty_union _
 
+--証明完了だが NoSwap 仮定あり。いらないかも。
 lemma singleton_symmDiff_next_diverge
   [DecidableEq α] [Fintype α]
   {R' : Finset (Rule α)} (hNTF : NoTwoFreshHeads R') (hNS : NoSwap R')
@@ -1622,6 +1732,7 @@ lemma singleton_symmDiff_next_diverge
               (R':=R') (U:=U) (V:=V) (k:=k) (x:=x)
               hprev hUnew hVnew
 
+--必要: Yes（ただしNoSwap 依存を外した版に切り替え推奨）。
 -- k = 0（基底段）：対称差が {t.head} に単点化
 --成り立たないのではとのことで条件を強めた。
 lemma base_diverge_symmDiff_is_head
@@ -1651,6 +1762,7 @@ lemma base_diverge_symmDiff_is_head
   sorry
 -/
 
+--必要: Yes。k>0 ケースの「単点は t.head」特定に使う。
 -- k>0：最初に分岐した（k-1 と k の間）とき、その単点は t.head
 lemma ARoute_singleton_is_head
   [DecidableEq α] [Fintype α] [LinearOrder α]
@@ -1669,7 +1781,7 @@ lemma ARoute_singleton_is_head
   -- ★ あなたの A-route 系補題（最初の食い違いは head）に差し替えて後で埋めてください
   sorry
 
-
+--現状: こちらは NoSwap を仮定しています。
 --上のsyncCl_eq_of_two_witnesses_ARouteと同じか。
 /-- addedFamily の一意性（A-route の核）。closure版に変更する必要あり。 -/
 lemma addedFamily_unique_of_ARoute
@@ -1958,7 +2070,7 @@ lemma addedFamily_unique_of_ARoute
 
 
 
-
+--いらないかも。
 /-- S の一意性（A-route 由来）。closure版に変更する必要あり。 -/
 lemma S_unique_on_addedFamily_of_ARoute
   (ρ : RuleOrder α) (R : Finset (Rule α)) {t : Rule α}
@@ -2013,6 +2125,7 @@ lemma base_eq_of_union_eq_disjoint_of_same_right
     · exact hxB1
     · exact ((Finset.disjoint_left.mp hD₂) hx hxS).elim
 
+--有用
 omit [DecidableEq (Rule α)] in
 lemma isWitness_disjoint
   (ρ : RuleOrder α) (R : Finset (Rule α)) (B S : Finset α) (t : Rule α)
@@ -2029,6 +2142,7 @@ lemma isWitness_disjoint
   simp_all only [inf_eq_inter, bot_eq_empty]
   rwa [inter_comm]
 
+--NoSwap仮定
 /-- 主結論：witness の基底は一意（A-route インターフェイスから）。 -/
 lemma witness_base_unique
   (ρ : RuleOrder α) (R : Finset (Rule α)) (t : Rule α)
@@ -2056,11 +2170,12 @@ lemma witness_base_unique
   -- syncCl 等号（A-route の addedFamily 一意性）
   have hEqCl :=
     addedFamily_unique_of_ARoute
-      ρ R hUC' hNTF hNS hA hW₁ hW₂ hAdd₁.2.2 hAdd₂.2.2
+      ρ R hUC' hNTF hNS  hW₁ hW₂
 
   have : S₁ = S₂ := by
     apply S_unique_on_addedFamily_of_ARoute
-      ρ R hUC' hNTF hNS hA hW₁ hW₂ hUnion hD₁ hD₂ hEqCl
+      ρ R hUC' hNTF hNS hA hW₁ hW₂ hUnion hD₁ hD₂
+    exact congrArg (syncCl (R.erase t)) hUnion
     exact A
   rw [this] at hUnion
 
