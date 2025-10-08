@@ -34,6 +34,7 @@ def NoEmpty (t : Rule α) : Prop := t.prem.Nonempty
 
 --UniqueChildという同値な仮定がBridge.leanにある。
 /-- UniqueChild (UC): 各 head ごとに規則は高々1本 -/
+
 def UC (R : Finset (Rule α)) : Prop :=
   ∀ a : α, (R.filter (fun t => t.head = a)).card ≤ 1
 
