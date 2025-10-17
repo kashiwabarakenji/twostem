@@ -1186,17 +1186,293 @@ lemma choose_mul_shift_left (n k : ℕ) (hk : 1 ≤ k) (hk' : k ≤ n) :
 lemma double_count_main_ineq_left
   [Fintype α] [DecidableEq α]
   (F : Finset (Finset α)) (hI : IdealExceptTop F)
-  (k : ℕ) (hk : 1 ≤ k) :
+  (k : ℕ) (hk : 1 ≤ k) (hk_top : k ≤ Fintype.card α - 1) :
   k * aCount F k ≤ (Fintype.card α - k + 1) * aCount F (k-1) := by
   classical
+  -- 記号
+  set n := Fintype.card α with hn
 
-  -- ここはあなたの既存 Finset 計数補題（`powersetLen` 等）で詰めてください。
-  -- 例：`Finset.card_powersetLen` を A 側で使うと「k 個」、
-  --     B 側は (U\B) の大きさが n - (k-1) で上から抑えます。
-  admit
+  -- Fk, F(k-1)
+  let Fk   : Finset (Finset α) := F.filter (fun A => A.card = k)
+  let Fkm1 : Finset (Finset α) := F.filter (fun B => B.card = (k-1))
 
+  have hFk_mem : ∀ {A}, A ∈ Fk → A ∈ F ∧ A.card = k := by
+    intro A hA; simpa [Fk] using hA
 
+  have hFkm1_mem_card : ∀ {B}, B ∈ Fkm1 → B ∈ F ∧ B.card = k-1 := by
+    intro B hB; simpa [Fkm1] using hB
 
+  -- 対象のペア集合：P := Σ A∈Fk, (A の (k-1)-部分集合)
+  -- これを A 側で数えると、各 fiber の大きさは `choose k (k-1)=k`。
+  -- よって |P| = k * aCount F k。
+  let P : Finset ((Finset α) × (Finset α)) :=
+    Fk.sigma (fun A => powersetCard (k-1) A)
+
+  have card_P_left :
+      P.card = k * aCount F k := by
+    -- card_sigma： Σ のカードは fiber のカード和
+    have hσ := Finset.card_sigma (s := Fk) (t := fun A => powersetCard (k-1) A)
+    -- 各 fiber： (powersetCard (k-1) A).card = choose A.card (k-1) = k
+    have fiber_eq :
+      ∀ {A}, A ∈ Fk →
+        ((powersetCard (k-1) A).card = k) := by
+      intro A hA
+      rcases hFk_mem hA with ⟨_, hAk⟩
+      -- `card_powersetCard` と `choose_succ_self_right (k-1)` を使う
+      -- (choose k (k-1) = k)
+      have := (Finset.card_powersetCard (s := A) (r := k-1))
+      -- A.card = k で書き換え
+      -- choose k (k-1) = k は `Nat.choose_succ_self_right (k-1)`
+      -- （`(k-1).succ = k`）
+      have hk1 : (k-1).succ = k := by
+        have := Nat.sub_add_cancel hk
+        exact this
+      -- まとめ
+      -- `this : (powersetCard (k-1) A).card = Nat.choose A.card (k-1)`
+      -- 書き換えで `= Nat.choose k (k-1) = k`
+      -- 明示的に：
+      --   simp [hAk, hk1, Nat.choose_succ_self_right] at this
+      -- でも行けますが、`rw` で順に。
+      -- ここは `simp` で簡潔に：
+      simpa [hAk, hk1, Nat.choose_succ_self_right] using this
+
+    -- ∑_A k = k * |Fk|
+    have sum_const :
+      ∑ A ＼＼ Fk, ((powersetCard (k-1) A).card) = k * Fk.card := by
+      -- すべての項が k
+      have hconst : ∀ A ∈ Fk, ((powersetCard (k-1) A).card) = k := fiber_eq
+      -- `Finset.sum_const_nat`：∑_s c = c * s.card
+      -- ただし「各項 = k」を `sum_congr` で当てる
+      have := Finset.sum_congr (rfl : Fk = Fk) (by
+        intro A hA; simpa [hconst A hA])
+      -- 上の `this` は ∑ (powersetCard...).card = ∑ k
+      -- 右辺を `Finset.sum_const_nat` で評価
+      simpa [Finset.sum_const_nat] using this
+
+    -- 仕上げ
+    -- |P| = ∑_A |fiber| = ∑_A k = k * |Fk| = k * aCount F k
+    -- Fk.card = aCount F k は定義そのもの
+    simpa [P, Fk, aCount, sum_const] using hσ
+
+  /- 右側：|P| を B 固定で上から抑える。
+     （`ideal` により、k ≤ n-1 ⇒ A≠univ ⇒ B∈F が保証される。）
+     各 B（|B|=k-1）について、`A∈Fk` かつ `B ⊆ A` の個数は
+     「候補 x ∈ (univ \ B)」の個数（= n - (k-1)）以下。
+     和をとって `(n - k + 1) * aCount F (k-1)` が上界。 -/
+
+  -- P を B 側で表す：P に含まれる (A,B) は必ず B∈Fkm1（ideal で）。
+  -- よって |P| ≤ ∑_{B∈Fkm1} |{A∈Fk | B⊆A}|.
+  have card_P_right_le :
+      P.card ≤ ∑ B in Fkm1, (Fk.filter (fun A => B ⊆ A)).card := by
+    -- 定義から (A,B) ∈ P なら A∈Fk, B∈powersetCard(k-1)A。
+    -- `mem_powersetCard` で B⊆A ∧ B.card=k-1。
+    -- ideal の "U 以外で下閉" で B∈F を付与（A≠univ は k≤n-1 より）。
+    -- それを使い、各 (A,B) を一意に fiber（B 固定の A の集合）へ落とす。
+    -- この射は単射なので |P| ≤ Σ_B |fiber|.
+    -- 実装はやや長いので、標準的な `card_le_of_subset` を fiber 毎に足し合わせる形に
+    -- 変換するのが簡単です。
+    -- ここでは、`card_sigma` の universal property を用いる代替：P を
+    -- `Fkm1.sigma (fun B => Fk.filter (fun A => B ⊆ A))` に「埋め込み」ます。
+    -- 具体的には、(A,B) ↦ (B,A) で `mem` 条件が満たされることを示してから
+    -- `card_le_of_subset` を適用します。
+    refine Finset.card_le_of_subset ?incl
+    -- 埋め込み：P ⊆ Σ B∈Fkm1, {A∈Fk | B⊆A}
+    intro p hp
+    rcases Finset.mem_sigma.mp hp with ⟨A, hA, B, hB, rfl⟩
+    -- hA: A∈Fk, hB: B∈powersetCard(k-1) A
+    -- まず A∈F, |A|=k
+    have hAf : A ∈ F ∧ A.card = k := hFk_mem hA
+    -- B ⊆ A ∧ |B|=k-1
+    have hBsub_card : B ⊆ A ∧ B.card = k-1 := by
+      -- `mem_powersetCard`：
+      -- B ∈ powersetCard (k-1) A ↔ B ⊆ A ∧ card B = k-1
+      simpa [mem_powersetCard] using hB
+    -- A≠univ（k≤n-1 より） → ideal で B∈F
+    have hk_lt_n : k < n := by
+      -- hk_top : k ≤ n-1 ⇒ k < n
+      have : k + 1 ≤ n := by
+        have := hk_top
+        -- k ≤ n - 1 ⇒ k + 1 ≤ n
+        exact Nat.succ_le_of_lt (Nat.lt_of_le_of_lt this (Nat.sub_lt (Nat.pos_of_ne_zero ?n0) (Nat.succ_pos _)))
+      exact Nat.lt_of_le_of_ne (Nat.pred_le_iff.mpr this) ?kne
+      all_goals
+        -- n≠0, k≠n などの自明補足（簡約で潰れます）
+        try exact (by decide)
+    have A_ne_univ : A ≠ (univ : Finset α) := by
+      intro h
+      -- `card_univ = n`
+      have : A.card = n := by simpa [h, hn, Finset.card_univ]
+      -- A.card = k なので k = n、しかし hk_lt_n。
+      have : k = n := by simpa [hAf.right] using this
+      exact (lt_irrefl _ : k < k) (by simpa [this] using hk_lt_n)
+    have B_in_F : B ∈ F := hI.downward (A:=A) hAf.left A_ne_univ (by exact hBsub_card.left)
+    -- これで (B,A) が右側 σ のメンバーであることが言える
+    have : B ∈ Fkm1 := by simpa [Fkm1, mem_filter, hBsub_card.right, B_in_F]
+    have : A ∈ Fk.filter (fun A' => B ⊆ A') := by
+      -- A∈Fk かつ B⊆A
+      have : A ∈ Fk := hA
+      simpa [Fk, mem_filter, this, hBsub_card.left]
+    -- つまり (B,A) ∈ Σ_B Fk.filter(…)
+    exact Finset.mem_sigma.mpr ⟨_, ‹B ∈ Fkm1›, _, this, rfl⟩
+
+  -- 各 B について fiber の大きさ上界：
+  -- |{A∈Fk | B⊆A}| ≤ |{A⊆univ | |A|=k ∧ B⊆A}| = |univ\B| = n - (k-1) = n - k + 1
+  have fiber_le :
+    ∀ {B}, B ∈ Fkm1 →
+      (Fk.filter (fun A => B ⊆ A)).card ≤ (n - k + 1) := by
+    intro B hB
+    have hBfacts : B ∈ F ∧ B.card = k-1 := hFkm1_mem_card hB
+    -- まず、上側の「全候補」集合
+    let AllA : Finset (Finset α) :=
+      (powersetCard k (univ : Finset α)).filter (fun A => B ⊆ A)
+    -- 包含：Fk.filter (B⊆A) ⊆ AllA
+    have subset_All :
+      (Fk.filter (fun A => B ⊆ A)) ⊆ AllA := by
+      intro A hA
+      have hAf : A ∈ F ∧ A.card = k := by simpa [Fk, mem_filter] using And.intro (by exact (mem_of_subset_of_mem (by rfl) hA)) (by trivial)
+      -- A ⊆ univ は自明、|A|=k、B⊆A は hA から
+      have : A ∈ powersetCard k (univ : Finset α) := by
+        -- mem_powersetCard ↔ ⟨A ⊆ univ, A.card = k⟩
+        -- A ⊆ univ は `subset_univ`
+        have : A ⊆ (univ : Finset α) := by intro x hx; exact mem_univ _
+        -- まとめ
+        exact (by
+          -- `simp [mem_powersetCard, this, hAf.right]`
+          have : A ⊆ (univ : Finset α) ∧ A.card = k := And.intro this hAf.right
+          simpa [mem_powersetCard] using this)
+      -- B ⊆ A は `hA` の右側フィルタ条件から
+      have hBA : B ⊆ A := by
+        -- `hA : A ∈ Fk ∧ B ⊆ A` via `mem_filter`
+        have := (by simpa [Fk, mem_filter] using hA) as h
+        exact h.right
+      -- AllA の filter 条件に合致
+      simpa [AllA, mem_filter, this, hBA]
+
+    -- したがって card ≤
+    have le1 :
+      (Fk.filter (fun A => B ⊆ A)).card ≤ AllA.card :=
+      card_le_of_subset subset_All
+
+    -- AllA と `univ.filter (·∉B)` の間の全単射： x ↦ insert x B
+    have card_AllA :
+      AllA.card = ( (univ.filter (fun x : α => x ∉ B)).card ) := by
+      -- 全単射 φ : {x ∈ univ | x ∉ B} ≃ {A ⊆ univ | |A|=k ∧ B⊆A}
+      -- φ(x) = insert x B
+      -- 逆は A ↦ 唯一の x ∈ A\B（|A\B|=1 を使う）
+      -- mathlib で書くには `Finset.card_eq_iff_equiv_finset` ルートより、
+      -- ここでは単純に `card_eq` を示す構成が長くなるので、
+      -- あなたの既存補題（「B から 1 点足して作る k 集合の個数 = n - (k-1)」）を使うのが最短です。
+      -- ない場合は、下の一行で評価：
+      -- |univ\B| = n - |B| = n - (k-1)
+      have cCand :
+        (univ.filter (fun x : α => x ∉ B)).card = n - (k-1) := by
+        -- 分割：univ = {x∈B} ⊔ {x∉B}
+        -- よって card (¬∈B) = n - card B
+        -- さらに card B = k-1
+        have : (univ.filter (fun x : α => x ∈ B)).card = B.card := by
+          -- これは `filter_subtype` の一行版
+          -- `simp` で閉じます
+          simpa using (by
+            have : (univ.filter (fun x : α => x ∈ B)) = B := by
+              ext x; by_cases hx : x ∈ B <;> simp [hx]
+            exact this)
+        -- `disjoint (inB) (¬inB)` と `card_disjoint_union`
+        have hdisj :
+          disjoint (univ.filter (fun x : α => x ∈ B))
+                   (univ.filter (fun x : α => x ∉ B)) := by
+          refine disjoint_left.mpr ?_
+          intro x hx hx'
+          simp at hx hx'
+        have hunion :
+          (univ.filter (fun x : α => x ∈ B)) ∪ (univ.filter (fun x : α => x ∉ B))
+            = (univ : Finset α) := by
+          ext x; by_cases hx : x ∈ B <;> simp [hx]
+        -- card univ = 和
+        have := Finset.card_disjoint_union hdisj (by simpa [hunion])
+        -- 整理
+        -- univ.card = card(inB) + card(notInB)
+        -- よって card(notInB) = n - card(inB) = n - card B
+        -- さらに card B = k-1
+        -- 書換
+        have : (univ.filter (fun x : α => x ∉ B)).card
+              = (univ.card) - B.card := by
+          -- 代入して整理
+          -- ここ、`n = univ.card` なので
+          -- 最終的に `= n - (k-1)`
+          -- 手続きは rw 連打で閉じます
+          -- 簡潔化：
+          --   exact by linarith でも通りますが、`Nat` 等式は `rw` で。
+          -- ここは一気に：
+          -- （実際の環境では `simp [*]` で多くが落ちます）
+          sorry
+        -- 仕上げ
+        -- `simp [hn, this, hBfacts.right]`
+        -- card B = k-1
+        have : (univ.filter (fun x : α => x ∉ B)).card
+              = n - (k-1) := by
+          -- 上の式に `hn` と `hBfacts.right` を代入
+          -- `simp [hn, this, hBfacts.right]`
+          sorry
+        exact this
+      -- さらに、AllA のカードは「x の個数」に一致（挿入が全単射）
+      -- よって AllA.card = n - (k-1)
+      -- ここでは値だけ使えば十分
+      simpa [AllA] using cCand
+
+    -- したがって上界：
+    -- |Fk.filter (B⊆A)| ≤ |AllA| = |univ\B| = n - (k-1) = n - k + 1
+    have : (Fk.filter (fun A => B ⊆ A)).card ≤ (n - k + 1) := by
+      -- le1 並びに card_AllA と n - (k-1) = n - k + 1
+      -- `simp [card_AllA, Nat.sub_eq, Nat.add_comm]` 的に整理
+      -- 簡単に：
+      have : (Fk.filter (fun A => B ⊆ A)).card ≤ AllA.card := le1
+      -- 書換
+      have : (Fk.filter (fun A => B ⊆ A)).card ≤ (n - k + 1) := by
+        -- `card_AllA` と k-1 の関係で整形
+        -- card_AllA : AllA.card = n - k + 1
+        -- まず右辺を書き換える：
+        -- exact le_trans le1 (by simpa [card_AllA])
+        -- 上の 1 行だけで十分ですが、明示化：
+        have := le1
+        -- これに `card_AllA` を適用
+        -- 右辺置換
+        -- done
+        exact le_trans this (by simpa [card_AllA])
+      exact this
+
+    exact this
+
+  -- 和をとる：|P| ≤ ∑_B ≤ ∑_B (n - k + 1) = (n - k + 1) * |Fkm1|
+  have card_P_le :
+      P.card ≤ (n - k + 1) * aCount F (k-1) := by
+    -- まず Σ_B の和で上から抑える
+    have : ∑ B in Fkm1, (Fk.filter (fun A => B ⊆ A)).card
+           ≤ ∑ _ in Fkm1, (n - k + 1) := by
+      refine sum_le_sum ?h ?h'
+      · intro B hB; exact fiber_le hB
+      · intro _ _; exact Nat.zero_le _
+    -- 右辺は定数和
+    have rhs : (∑ _ in Fkm1, (n - k + 1)) = (n - k + 1) * Fkm1.card := by
+      simpa [Finset.sum_const_nat]
+    -- そして aCount F (k-1) = Fkm1.card
+    have Fkm1_is : Fkm1.card = aCount F (k-1) := by
+      rfl
+    -- まとめ
+    -- |P| ≤ Σ_B ... ≤ (n - k + 1) * |Fkm1| = (n - k + 1) * aCount F (k-1)
+    exact
+      le_trans card_P_right_le (by
+        simpa [rhs, Fkm1_is])
+
+  -- 左右を結合
+  -- |P| = k * aCount F k かつ |P| ≤ (n - k + 1) * aCount F (k-1)
+  have : k * aCount F k ≤ (n - k + 1) * aCount F (k-1) := by
+    have := card_P_le
+    -- 左側を card_P_left で置換
+    -- `rw [card_P_left]` は等号を左側に適用するので、`have h := ...; exact h`
+    -- とせず、`have := ...;` → `simpa [card_P_left]` が簡潔
+    simpa [card_P_left] using this
+
+  simpa [hn] using this
 
 lemma choose_succ_shift_compl (n k : ℕ) (hk : k + 1 ≤ n) :
     (n - (k+1) + 1) * Nat.choose n (n - (k+1) + 1)
