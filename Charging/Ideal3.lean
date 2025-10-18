@@ -362,6 +362,7 @@ by
   -- まさに def の定義通りなので反射律
   rfl
 
+omit [Fintype α] [DecidableEq α] in
 lemma card_subsets_size_k_containing_B
   [DecidableEq α] [Fintype α]
   {B : Finset α} {k : ℕ} (hk : k >= 1)
@@ -382,6 +383,18 @@ lemma card_subsets_size_k_containing_B
   -- φ : D → T,  x ↦ insert x B
   -- まず `insert x B ∈ AllA` を示す
   have himage :
+  ∀ {x : α}, x ∉ B → (insert x B : Finset α) ∈ AllA := by -- 修正点
+    intro x hx
+    have hcard : (insert x B : Finset α).card = k := by -- 修正点
+      simp [card_insert_of_notMem hx, hB, Nat.sub_add_cancel hk]
+    have hSubUniv : (insert x B : Finset α) ⊆ (univ : Finset α) := by -- 修正点
+      exact subset_univ _
+    have inPow : (insert x B : Finset α) ∈ powersetCard k (univ : Finset α) := by -- 修正点
+      simp [mem_powersetCard, hSubUniv, hcard]
+    have Bsubset : B ⊆ (insert x B : Finset α) := by exact subset_insert x B
+    simpa [hAllA] using mem_filter.mpr ⟨inPow, Bsubset⟩
+   /-
+  have himage :
     ∀ {x : α}, x ∉ B → insert x B ∈ AllA := by
     intro x hx
     -- `insert x B ⊆ univ` は自明、`card = k` は `#B = k-1` と `x ∉ B` から
@@ -390,17 +403,10 @@ lemma card_subsets_size_k_containing_B
       have := card_insert_if (B) x
       simp [hx, hB] at this
       simp_all only [ge_iff_le, not_false_eq_true, card_insert_of_notMem, Nat.sub_add_cancel, AllA]
+    -/
 
     -- `insert x B` が `powersetCard k univ` に属し，かつ `B ⊆ insert x B`
-    have hSubUniv : insert x B ⊆ (univ : Finset α) := by
-      intro y hy; exact mem_univ _
-    have inPow : insert x B ∈ powersetCard k (univ : Finset α) := by
-      -- `mem_powersetCard` は `A ⊆ s ∧ A.card = k` と同値
-      simp [mem_powersetCard, hSubUniv, hcard]
-    have Bsubset : B ⊆ insert x B := by
-      intro y hy; exact subset_insert _ _ hy
-    -- AllA の定義に合う
-    simpa [hAllA] using mem_filter.mpr ⟨inPow, Bsubset⟩
+
 
   -- ψ : T → D を構成するため、A\B の濃度が 1 であることを示す
   have uniqueDiff :
@@ -512,8 +518,23 @@ lemma card_subsets_size_k_containing_B
     --show fromFun ⟨insert (↑x) B, ⋯⟩ = x
 
   have left_inv :
-    ∀ x : D, fromFun ⟨insert x.1 B, by exact himage x.property⟩ = x := by
+    ∀ x : D, fromFun B AllA uniqueDiff ⟨(insert x.1 B : Finset α), by exact himage x.property⟩ = x := by
+    -- 修正点: `(insert ...)` に `: Finset α` を追加
     intro x
+    simp only [fromFun]
+    have h_diff : (insert x.val B : Finset α) \ B = {x.val} := by
+      let fs := @Finset.sdiff_insert α _ B
+      simp_all only [ge_iff_le, mem_filter, mem_powersetCard, subset_univ, not_false_eq_true, card_insert_of_notMem,
+        Nat.sub_add_cancel, and_self, subset_insert, implies_true, true_and, and_imp, AllA]
+      obtain ⟨val, property⟩ := x
+      simp_all only [not_false_eq_true, insert_sdiff_cancel]
+
+    --have h_choose_eq : Classical.choose (Finset.card_eq_one.mp (by rw [h_diff]; simp)) = x.val := by
+    --  apply Classical.choose_unique
+    --  simp [h_diff]
+    --simp [h_choose_eq]
+
+    --intro x
     -- 記号整理
     let A : Finset α := insert x.1 B
     have hA : A ∈ AllA := himage x.property
@@ -583,8 +604,7 @@ lemma card_subsets_size_k_containing_B
       -- hy : A \ B = {choose},  hIns : A \ B = {x}
       -- よって {choose} = {x}
       -- （左右の書き換え順はお好みで）
-      have := hy.trans hIns.symm
-      simpa using this
+      exact hSingleton
 
     have hchoose_eq : Classical.choose hx_exists = (x : {x // x ∉ B}).1 := by
       -- 単集合 membership で閉じる
@@ -638,7 +658,7 @@ lemma card_subsets_size_k_containing_B
     -/
 
   have right_inv :
-    ∀ t : T, ⟨insert (fromFun t).1 B, by exact himage (fromFun t).2⟩ = t := by
+    ∀ t : T, ⟨insert (fromFun B AllA uniqueDiff t).1 B, by exact himage (fromFun B AllA uniqueDiff t).2⟩ = t := by
     intro t
     rcases t with ⟨A, hA⟩
     -- さきほどの議論：`A \ B` の唯一元 x を取り、`A = insert x B` を示せばよい
@@ -666,8 +686,8 @@ lemma card_subsets_size_k_containing_B
       intro y hy
       rcases mem_insert.mp hy with hxy | hyB
       · simpa [hxy] using hxAB.1
-      · simp_all only [mem_filter, mem_powersetCard, subset_univ, true_and, and_imp, Subtype.forall, card_singleton,
-          mem_insert, or_true, AllA, D]
+      · simp_all only [mem_filter, mem_powersetCard, subset_univ, true_and, Subtype.forall,
+        card_singleton, mem_insert, or_true, AllA, D]
         obtain ⟨left, right⟩ := hA
         obtain ⟨left_1, right_1⟩ := hxAB
         subst left
@@ -683,14 +703,14 @@ lemma card_subsets_size_k_containing_B
     -- 最後にサブタイプの証明成分は `himage` で自動的に合う
     --（Lean は `rfl` で閉じます）
     subst this
-    simp_all only [mem_filter, mem_powersetCard, subset_univ, true_and, and_imp, Subtype.forall, card_singleton,
-      not_false_eq_true, insert_sdiff_cancel, mem_insert, true_or, subset_refl, AllA, D, T]
+    simp_all only [true_and, Subtype.forall, card_singleton, not_false_eq_true, insert_sdiff_cancel,
+      mem_insert, true_or, subset_refl, AllA, D, T]
 
 
   -- 上の left_inv, right_inv から全単射を得る
   let e : D ≃ T :=
   { toFun := fun x => ⟨insert x.1 B, himage x.2⟩
-    , invFun := fromFun
+    , invFun := fun t => fromFun B AllA uniqueDiff t
     , left_inv := left_inv
     , right_inv := right_inv }
 
@@ -718,8 +738,8 @@ lemma card_subsets_size_k_containing_B
     have := Fintype.card_congr e
     -- 両辺を finset のカードに書き換える
     -- `hT` と `hD` を適用
-    simp_all only [mem_filter, mem_powersetCard, subset_univ, true_and, and_imp, Fintype.card_subtype_compl,
-    Fintype.card_coe, AllA, D, T]
+    simp_all only [mem_filter, mem_powersetCard, subset_univ, true_and, Fintype.card_subtype_compl,
+      Fintype.card_coe, AllA, D, T]
   )
 
 omit [Fintype α] in
@@ -1496,6 +1516,7 @@ lemma double_count_main_ineq_left
   -- 仕上げ：n = |α|
   simpa [hn] using this
 
+/- sorryがたくさんあり、まるっきり描き直したので、消せる。
 lemma double_count_main_ineq_left2
   [Fintype α] [DecidableEq α]
   (F : Finset (Finset α)) (hI : IdealExceptTop F)
@@ -1864,6 +1885,7 @@ lemma double_count_main_ineq_left2
     simpa [card_P_left] using this
 
   simpa [hn] using this
+-/
 
 lemma choose_succ_shift_compl (n k : ℕ) (hk : k + 1 ≤ n) :
     (n - (k+1) + 1) * Nat.choose n (n - (k+1) + 1)
