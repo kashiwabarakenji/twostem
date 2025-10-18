@@ -951,15 +951,326 @@ theorem TheoremA
             simp [htel]
       _ = (n : ℚ) * (s n - s 0) := by ring
 
-/-- 端点が等しい単調列では `NDSQ ≤ 0`。
-`TheoremA : NDSQ ≤ n (s n - s 0)` を用い、`s n = s 0` で評価する。 -/
-theorem TheoremA_nonpos_of_equal_ends
+/-- 全和が 0、末項が `n` なので、最後直前の部分和は `-n`。 -/
+lemma PZ_last_eq_neg_n (n : ℕ) :
+  PZ n (n - 1) = - (n : ℤ) := by
+  classical
+  -- n = 0 は別処理（どちらも 0）
+  cases n with
+  | zero =>
+    -- ここは PZ 0 (0 - 1) があなたの定義で 0 になること（通常は `range 0` の和で 0）
+    -- を使って閉じます。`simp` の代わりに明示的に書くなら：
+    --   unfold PZ; -- 定義展開
+    --   -- `range 0` の和は 0
+    --   exact by decide  -- あるいは `rfl` / `simp` で落ちるはず
+    -- 右辺も `- (0:ℤ) = 0`
+    -- ここは環境依存ですが、だいたい `rfl` か `simp` で閉まります。
+    -- 低レベル記法で：
+    have : PZ 0 0 = (0:ℤ) := by
+      -- PZ 0 0 の定義が「最初の1項の和（k=0）」なら、その値は 0 です。
+      -- そうでなく「range 0 の和」定義ならもちろん 0。
+      -- あなたの PZ 定義に合わせてここを置換してください。
+      -- 仮に「range 0 の和」なら：
+      --   unfold PZ; simp
+      exact rfl
+    -- `0 - 1 = 0`（自然数の飽和引き算）に合わせる
+    have : PZ 0 (0 - 1) = 0 := by
+      -- `by simpa` を避ける場合：
+      -- `Nat.zero_sub 1 = 0` が使える環境ならそれで書き換えて上の等式へ
+      -- なければ PZ の定義で直接 0 を出して構いません
+      exact this
+    -- 右辺は 0
+    have : - (0 : ℤ) = (0 : ℤ) := by
+      -- `simp` で落ちますが、明示するなら：
+      exact rfl
+    -- 仕上げ
+    -- exact by rw [this₁, this₂] の形にしてください
+    (expose_names; exact this_1)
+
+  | succ m =>
+    -- 記法
+    let w : ℕ → ℤ := fun k => ((2 : ℤ) * k - (Nat.succ m)) * (Nat.choose (Nat.succ m) k : ℤ)
+
+    -- 全体の重み和が 0 という恒等式（既出の補題を使うか、左右対称性で証明ずみのはず）
+    --   ∑_{k=0}^{m+1} w k = 0
+    have hsum_all : ∑ k ∈ Finset.range (Nat.succ m + 1), w k = 0 := by
+      -- ここはあなたのファイルにある「PZ の基本恒等式（全体の和が 0）」に合わせて置き換えてください。
+      -- 例：重みの反転対消で証明済みの補題。
+      -- w と wZ が一致なら
+      have hdom : (Icc 0 m.succ : Finset ℕ) = range (m.succ + 1) := by
+        ext k
+        constructor
+        · intro hk
+          -- k ∈ Icc 0 m.succ → k ≤ m.succ → k < m.succ + 1
+          simp_all only [Nat.succ_eq_add_one, mem_Icc, zero_le, true_and, mem_range]
+          omega
+
+        · intro hk
+          -- k < m.succ + 1 → 0 ≤ k ∧ k ≤ m.succ
+          apply Finset.mem_Icc.mpr
+          constructor
+          · exact Nat.zero_le k
+          · exact mem_range_succ_iff.mp hk
+
+      have h0 : ∑ k ∈ range (m.succ + 1), wZ (m.succ) k = 0 := by
+        -- さきの hdom を n := m.succ で使う
+        have := sum_wZ_all_eq_zero (m.succ)
+        simp_all only [Nat.succ_eq_add_one]
+
+      let sz := sum_wZ_all_eq_zero (Nat.succ m + 1)
+      simp_all only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, w]
+      exact h0
+
+    -- 末項 k = n の重みは n：w n n = n
+    have w_last : w (Nat.succ m) = (Nat.succ m : ℤ) := by
+      -- choose (n) (n) = 1 と (2n - n) = n を使うだけ
+      -- 展開して：
+      -- w (m+1) = ((2:ℤ)*(m+1) - (m+1)) * (Nat.choose (m+1) (m+1) : ℤ)
+      --         = ((m+1):ℤ) * 1 = (m+1):ℤ
+      -- この行は `simp [w, Nat.choose_self, two_mul, add_comm, add_left_comm, add_assoc]` で済みますが
+      -- `simp` を避けるなら逐次 rw して構いません。
+      simp_all only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, Nat.choose_self, mul_one, w]
+      ring
+
+    -- 「全和 = 0」から「最後の手前までの和 = - 最後の項」を取り出す
+    have hsum_init :
+      ∑ k ∈ Finset.range (Nat.succ m), w k = - (Nat.succ m : ℤ) := by
+      -- range_succ で全和を「初めの n 項 + 最後の 1 項」に分ける
+      have := Finset.sum_range_succ (f := w) m.succ
+      -- `sum_range_succ : (∑ k < n+1, f k) = (∑ k < n, f k) + f n`
+      -- 今は `n = m.succ` なので
+      --   ∑_{k=0}^{m+1} w k = (∑_{k=0}^{m} w k) + w (m+1)
+      -- これを hsum_all と w_last に代入して解く
+      -- （`rw` 連鎖で丁寧に）
+      -- 1) hsum_all を左辺に、2) w_last を右端に、3) 右辺を移項
+      rw [hsum_all] at this
+      rw [@eq_neg_iff_add_eq_zero]
+      symm
+      rw [w_last] at this
+      exact this
+
+    -- PZ の定義と一致させる
+    -- ふつう PZ (m+1) ((m+1)-1) = ∑_{k=0}^{m} w k
+    have hPZ :
+      PZ (Nat.succ m) (Nat.succ m - 1) = ∑ k ∈ Finset.range (Nat.succ m), w k := by
+      -- あなたの PZ 定義（部分和定義）を `unfold PZ` で展開して、この形に揃えてください
+      have PZ_eq :
+          PZ m.succ (m.succ - 1) = ∑ k ∈ range m.succ, wZ m.succ k := by
+        -- (m.succ - 1) + 1 = m.succ
+        have ht1 : (m.succ - 1) + 1 = m.succ := by
+          -- succ_pred_eq_of_pos : 0 < a → (a - 1).succ = a
+          -- を +1 版に直して使います
+          have : (m.succ - 1).succ = m.succ :=
+            Nat.succ_pred_eq_of_pos (Nat.succ_pos m)
+          simp [Nat.succ_eq_add_one]
+
+        -- PZ を定義で展開して上限を書き換え
+        -- これで右辺が `∑ k ∈ range m.succ, wZ m.succ k` になります
+        -- （PZ の定義を `unfold` / `simp` のどちらで展開するかは
+        --   あなたの定義の置き方に合わせて調整してください）
+        -- 例：
+        --   unfold PZ
+        --   rw [ht1]
+        -- または
+        --   simp [PZ, ht1]
+        simp [PZ]
+        simp_all only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, Nat.choose_self, mul_one,
+          neg_add_rev, Int.reduceNeg, add_tsub_cancel_right, w]
+        congr
+        ext a : 1
+        simp_all only [Int.reduceNeg, mem_Icc, zero_le, true_and, mem_range]
+        apply Iff.intro
+        · intro a_1
+          linarith
+        · intro a_1
+          omega
+
+
+      -- つぎに integrand を w に差し替え
+      have integrand_swap :
+          (∑ k ∈ range m.succ, wZ m.succ k)
+        = (∑ k ∈ range m.succ, w k) := by
+        -- 各項で wZ m.succ k = w k を示して総和の同値を書き換え
+        refine Finset.sum_congr rfl ?_
+        intro k hk
+        -- 定義通り一致
+        -- wZ の定義が ((2 : ℤ) * k - (m.succ : ℤ)) * (m.succ.choose k : ℤ)
+        -- であれば、ちょうど w と一致します
+        dsimp [wZ, w]
+
+      -- 仕上げ： 2 つを連結
+      have : PZ m.succ (m.succ - 1) = ∑ k ∈ range m.succ, w k := by
+        -- PZ を wZ の和に直した等式と，integrand を w に差し替えた等式を合成
+        -- PZ_eq : PZ = Σ wZ, integrand_swap : Σ wZ = Σ w
+        -- よって PZ = Σ w
+        -- （`rw` を2回）
+        calc
+          PZ m.succ (m.succ - 1)
+              = ∑ k ∈ range m.succ, wZ m.succ k := PZ_eq
+          _   = ∑ k ∈ range m.succ, w k       := integrand_swap
+
+      -- 望んでいる結論
+      exact this
+
+    -- 仕上げ
+    -- 2つの等式を合成
+    -- PZ n (n-1) = (初めの n 項の和) = -n
+    -- つまりゴール
+    have : PZ (Nat.succ m) (Nat.succ m - 1) = - (Nat.succ m : ℤ) := by
+      -- `calc` でつなぐか、`rw [hPZ, hsum_init]`
+      simp_all only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, Nat.choose_self, mul_one, neg_add_rev, Int.reduceNeg,
+        add_tsub_cancel_right, w]
+    -- n = m+1 に戻す
+    exact this
+
+theorem TheoremA_upto_nsub2
     (n : ℕ) (s : ℕ → ℚ)
-    (hmono : ∀ k, k ≤ n-1 → s k ≥ s (k+1))
-    (hends : s 0 = s n) :
-    NDSQ n s ≤ 0 := by
+    (hmono' : ∀ k, k ≤ n-2 → s k ≥ s (k+1)) :
+    NDSQ n s ≤ (n : ℚ) * (s n - s 0) := by
+  classical
+  -- Abel 型表示
+  have hA := NDSQ_by_parts n s
+
+  -- PZ の上界：PZ(n,t) ≤ -n （特に t = n-1 では等号）
+  have hP : ∀ t ∈ Icc 0 (n-1), (PZ n t : ℚ) ≤ - (n : ℚ) := by
+    intro t ht
+    have ht' : t ≤ n-1 := (Finset.mem_Icc.mp ht).right
+    -- Int 版の不等式を ℚ へキャストする
+    have := PZ_le_neg_n n t ht'
+    -- Int.cast ≤ へ通し、右辺は `rfl` で -n へ
+    exact (Int.cast_le.mpr this).trans_eq rfl
+
+  -- まず n=0 を枝分け（元の証明と同様）
+  by_cases h0 : n = 0
+  · -- n=0
+    subst h0
+    -- Icc 0 (0-1) = Icc 0 0 = {0}
+    have hPZ0 : ∀ t ∈ Icc 0 0, (PZ 0 t : ℚ) = 0 := by
+      intro t ht
+      -- ここで t = 0 を取り出す
+      have ht0 : t = 0 := by
+        have h := Finset.mem_Icc.mp ht
+        exact Nat.le_antisymm h.2 h.1
+      subst ht0
+      -- PZ(0,0) = -0 = 0
+      -- （あなたの環境の補題名に合わせて：例えば `PZ_at_top_eq_neg_n` の n=0 特例など）
+      -- なければ定義から直接 0 を計算して OK
+      exact by
+        -- 例：`by rfl` や `by simp` で落ちる形にしておく
+        simp  -- ← PZ の定義に合わせて
+        exact rfl
+
+    -- すると和は 0
+    have hsum0 :
+      (∑ t ∈ Icc 0 (0-1), (s t - s (t+1)) * (PZ 0 t : ℚ)) = 0 := by
+      -- 台集合は {0}、各項は hPZ0 で 0
+      simp_all only [zero_tsub, nonpos_iff_eq_zero, zero_add, ge_iff_le, forall_eq, Icc_self, mul_zero, sum_const_zero,
+        mem_singleton, CharP.cast_eq_zero, neg_zero, le_refl, implies_true, Rat.intCast_eq_zero, sum_singleton,
+        Int.cast_zero]
+
+    -- 右辺も 0 * (s0 - s0) = 0
+    have rhs0 : (0 : ℚ) * (s 0 - s 0) = 0 := by ring
+
+    -- 仕上げ
+    calc
+      NDSQ 0 s
+          = ∑ t ∈ Icc 0 (0-1), (s t - s (t+1)) * (PZ 0 t : ℚ) := hA
+      _ = 0 := hsum0
+      _ ≤ 0 := le_rfl
+      _ = (0 : ℚ) * (s 0 - s 0) := by simp
+
+  -- n > 0 の場合
+  · have hnpos : 0 < n := Nat.pos_of_ne_zero h0
+
+    -- 主要評価：各 t で
+    --   (s_t - s_{t+1}) * PZ(n,t) ≤ (s_t - s_{t+1}) * (−n)
+    -- を示して総和にかける。
+    -- t = n-1 だけは PZ = −n が等号なので、単調性は不要。
+    have hmaj :
+      (∑ t ∈ Icc 0 (n-1), (s t - s (t+1)) * (PZ n t : ℚ))
+      ≤ (∑ t ∈ Icc 0 (n-1), (s t - s (t+1)) * (-(n : ℚ))) := by
+      apply Finset.sum_le_sum
+      intro t ht
+      -- t が最上段かどうかで分岐
+      by_cases htop : t = n-1
+      · -- 最上段 t = n-1：PZ(n,n-1) = -n の等号
+        subst htop
+        -- Int 版の等式を ℚ へキャスト
+        have hEqZ : (PZ n (n-1) : ℤ) = - (n : ℤ) := by
+          exact_mod_cast PZ_last_eq_neg_n n
+        have hEqQ : (PZ n (n-1) : ℚ) = - (n : ℚ) := by
+          exact_mod_cast hEqZ
+        -- 等式なので、そのまま ≤ が成り立つ
+        -- （係数の符号は関係なし）
+        calc
+           (s (n - 1) - s (n - 1 + 1)) * ↑(PZ n (n - 1))
+              =
+          (s (n-1) - s n) * (PZ n (n-1) : ℚ) := by
+                simp_all only [ge_iff_le, mem_Icc, zero_le, true_and, le_refl, and_self, Int.cast_neg, Int.cast_natCast, mul_neg,
+                  neg_inj, mul_eq_mul_right_iff, sub_right_inj, Rat.natCast_eq_zero, or_false]
+                rw [tsub_add_cancel_of_le hnpos]
+           _  = (s (n-1) - s n) * (-(n : ℚ)) := by
+                    -- 置換
+                    exact congrArg (fun x => (s (n-1) - s n) * x) hEqQ
+           _ ≤ (s (n-1) - s n) * (-(n : ℚ)) := by
+                    exact le_of_eq rfl
+           _ = (s (n - 1) - s (n - 1 + 1)) * -↑n := by
+                simp_all only [ge_iff_le, mem_Icc, zero_le, true_and, le_refl, and_self, Int.cast_neg, Int.cast_natCast, mul_neg,
+                  neg_inj, mul_eq_mul_right_iff, sub_right_inj, Rat.natCast_eq_zero, or_false]
+                rw [Nat.sub_add_cancel hnpos]
+
+      · -- t ≤ n-2 の範囲：ここでだけ単調性を使う
+        have t_le_n1 : t ≤ n-1 := (Finset.mem_Icc.mp ht).right
+        have t_le_n2 : t ≤ n-2 := by
+          -- t ≤ n-1 かつ t ≠ n-1 ⇒ t ≤ n-2
+          -- つまり `t < n-1` を示してから `Nat.le_of_lt_succ`
+          have : t < n-1 := lt_of_le_of_ne t_le_n1 htop
+          apply  Nat.le_of_lt_succ
+          simp_all only [ge_iff_le, mem_Icc, zero_le, true_and, and_self, Nat.succ_eq_add_one]
+          omega
+        -- λ_t ≥ 0
+        have hnn : 0 ≤ (s t - s (t+1)) :=
+          sub_nonneg.mpr (hmono' t t_le_n2)
+        -- 係数非負で両辺に掛ける
+        exact mul_le_mul_of_nonneg_left (hP t ht) hnn
+
+    -- 望遠和（Icc→Ico）
+    have htel :
+      (∑ t ∈ Icc 0 (n-1), (s t - s (t+1))) = s 0 - s n := by
+      have hI : (Icc 0 (n-1) : Finset ℕ) = Ico 0 n :=
+        Icc_pred_eq_Ico (k := 0) hnpos
+      -- Ico 版の望遠和（既存補題）
+      have htel' := telesc_Ico s (k := 0) (n := n) (Nat.zero_le _)
+      -- 書き換え
+      -- `by` で等式の両辺を `hI` に沿って置換
+      simp_all only [ge_iff_le, Nat.Ico_zero_eq_range, mem_range, mul_neg, sum_neg_distrib, sum_sub_distrib]
+
+    -- 仕上げ（元の TheoremA と同じ）
+    calc
+      NDSQ n s
+          = ∑ t ∈ Icc 0 (n-1), (s t - s (t+1)) * (PZ n t : ℚ) := hA
+      _ ≤ ∑ t ∈ Icc 0 (n-1), (s t - s (t+1)) * (-(n : ℚ)) := hmaj
+      _ = (∑ t ∈ Icc 0 (n-1), (s t - s (t+1))) * (-(n : ℚ)) := by
+            -- 定数 (−n) を外へ
+            -- `Finset.sum_mul` の左右向きを揃える
+            have := (Finset.sum_mul (Icc 0 (n-1)) (fun t => (s t - s (t+1))) (-(n:ℚ))).symm
+            exact this
+      _ = (-(n : ℚ)) * (∑ t ∈ Icc 0 (n-1), (s t - s (t+1))) := by
+            ring
+      _ = (-(n : ℚ)) * (s 0 - s n) := by
+            exact congrArg (fun x => (-(n:ℚ)) * x) htel
+      _ = (n : ℚ) * (s n - s 0) := by
+            ring
+
+
+
+theorem TheoremA_nonpos_of_equal_ends_upto_nsub2
+  (n : ℕ) (s : ℕ → ℚ)
+  (hmono' : ∀ k, k ≤ n-2 → s k ≥ s (k+1))
+  (hends : s 0 = s n) :
+  NDSQ n s ≤ 0 := by
   have hA : NDSQ n s ≤ (n : ℚ) * (s n - s 0) :=
-    TheoremA n s hmono
+    TheoremA_upto_nsub2 n s hmono'
   -- s n - s 0 = 0  （端点が等しい）
   have hdiff0 : s n - s 0 = 0 := by
     -- sub_eq_zero.mpr : a = b → a - b = 0
@@ -972,7 +1283,6 @@ theorem TheoremA_nonpos_of_equal_ends
     exact Eq.trans this (by ring)
   -- 連鎖
   exact le_trans hA (by exact le_of_eq hmul0)
-
 
 
 end LayerDensity
